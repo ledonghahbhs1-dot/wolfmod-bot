@@ -168,8 +168,8 @@ async function startBot() {
 
   // ─── Required channels for /referral ─────────────────────────────────────
   const REQUIRED_CHANNELS = [
-    { id: "@youtubewolfmod",   url: "https://t.me/youtubewolfmod",          label: "📺 WolfMod YouTube Channel" },
-    { id: -1002770498924,      url: "https://t.me/+n-tXTX8vVvQ3OTk1",      label: "💬 WolfMod Community Group" }
+    { id: -1002070376940,      url: "https://t.me/+your_channel_invite",    label: "📢 WOLF Team" },
+    { id: -1002770498924,      url: "https://t.me/+n-tXTX8vVvQ3OTk1",      label: "👥 WOLF Team Chat" }
   ];
 
   async function checkMembership(userId) {
