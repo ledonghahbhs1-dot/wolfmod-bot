@@ -507,13 +507,8 @@ async function startBot() {
     if (err.code === "ETELEGRAM" && err.message.includes("409")) {
       log("⚠️  409 CONFLICT — Another bot instance is already running with this token!");
       log("    PID: " + process.pid + " | Host: " + (process.env.HOSTNAME || process.env.RAILWAY_REPLICA_ID || "unknown"));
-      log("    This usually means the bot is running on 2 servers at the same time.");
-      log("    Stopping polling, retrying in 15s...");
-      bot.stopPolling();
-      setTimeout(() => {
-        log("🔄 Retrying polling after 409 conflict...");
-        bot.startPolling();
-      }, 15000);
+      log("    Stopping this instance and exiting so the platform can restart cleanly...");
+      bot.stopPolling().finally(() => process.exit(1));
     } else {
       log("❌ Polling error [" + (err.code || "NO_CODE") + "]: " + err.message);
     }
