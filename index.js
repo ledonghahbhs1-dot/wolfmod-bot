@@ -178,8 +178,10 @@ async function startBot() {
         try {
           const member = await bot.getChatMember(ch.id, userId);
           const ok = ["creator", "administrator", "member", "restricted"].includes(member.status);
+          log("checkMembership " + userId + " in " + ch.id + ": status=" + member.status + " ok=" + ok);
           return { ...ch, joined: ok };
-        } catch {
+        } catch (e) {
+          log("checkMembership ERROR " + userId + " in " + ch.id + ": " + e.message + " (Bot must be admin in private groups/channels)");
           return { ...ch, joined: false };
         }
       })
