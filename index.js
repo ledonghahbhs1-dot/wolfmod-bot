@@ -68,7 +68,21 @@ function groupOnly(handler) {
 let bot;
 let botUsername = "";
 
-function startBot() {
+async function startBot() {
+  // Force-clear any existing polling/webhook session before starting
+  // This prevents 409 conflicts from stale deployments
+  log("🔄 Clearing existing Telegram sessions...");
+  try {
+    const clearBot = new TelegramBot(token, { polling: false });
+    await clearBot.deleteWebhook({ drop_pending_updates: true });
+    log("✅ Session cleared, starting polling...");
+  } catch (e) {
+    log("⚠️  Could not clear session: " + e.message);
+  }
+
+  // Small delay to let Telegram register the session reset
+  await new Promise(r => setTimeout(r, 2000));
+
   bot = new TelegramBot(token, {
     polling: {
       interval: 2000,
