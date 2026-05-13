@@ -138,7 +138,7 @@ function startBot() {
       const chatId = msg.chat.id;
       const firstName = msg.from?.first_name ?? "there";
       bot.sendMessage(chatId,
-        "👋 Hello, <b>" + firstName + "</b>!\n\n🐉 Welcome to <b>WolfMod Bot</b>! 🎉\n\nCommands:\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n❓ /help",
+        "👋 Hello, <b>" + firstName + "</b>!\n\n🐉 Welcome to <b>WolfMod Bot</b>! 🎉\n\nCommands:\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n🏆 /leaderboard\n❓ /help",
         { parse_mode: "HTML" }
       );
     }
@@ -147,7 +147,7 @@ function startBot() {
   // ─── /help ─────────────────────────────────────────────────────────────────
   bot.onText(/\/help/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id,
-      "📖 <b>Command List</b>\n\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n🏠 /start\n\n⚡️ @wolfmodyt",
+      "📖 <b>Command List</b>\n\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n🏆 /leaderboard\n🏠 /start\n\n⚡️ @wolfmodyt",
       { parse_mode: "HTML" }
     );
   }));
@@ -169,18 +169,80 @@ function startBot() {
       return;
     }
 
-    const referralLink = "https://t.me/" + botUsername + "?start=ref_" + userId + "_" + chatId;
+    // Calculate rank among all users with points
+    const allUsers = Object.entries(db.points)
+      .map(([id, u]) => ({ id, points: u.points }))
+      .sort((a, b) => b.points - a.points);
+    const rank = allUsers.findIndex(u => u.id === userId) + 1;
+    const rankText = rank > 0 ? "#" + rank + " / " + allUsers.length : "N/A";
 
-    const displayName = username ? "@" + username : "<b>" + name + "</b>";
+    // Count successful referrals (people they referred who joined)
+    const successfulReferrals = Object.values(db.joined)
+      .filter ? Object.keys(db.joined).filter(key => {
+        const joinedUserId = key.split("_")[0];
+        return db.points[joinedUserId]?._referredBy === userId;
+      }).length : 0;
+
+    const referralLink = "https://t.me/" + botUsername + "?start=ref_" + userId + "_" + chatId;
+    const displayName = username ? "@" + username : name;
+
     bot.sendMessage(chatId,
       "🔗 <b>Referral Program</b>\n\n" +
-      "👤 User: " + displayName + "\n" +
-      "⭐ Points: <b>" + user.points + "</b>\n\n" +
-      "📢 Share your referral link below.\nWhen a new member clicks it, messages the bot, then joins this group — you earn <b>+1 point</b>!\n\n" +
-      "🔗 Your link:\n<code>" + referralLink + "</code>",
+      "👤 User: <b>" + displayName + "</b>\n" +
+      "⭐ Points: <b>" + user.points + "</b>\n" +
+      "🏆 Rank: <b>" + rankText + "</b>\n\n" +
+      "📢 <b>How it works:</b>\n" +
+      "1️⃣ Share your link below\n" +
+      "2️⃣ Friend clicks link → messages bot\n" +
+      "3️⃣ Friend joins this group → you get <b>+1 point</b>!\n\n" +
+      "🔗 <b>Your referral link:</b>\n<code>" + referralLink + "</code>\n\n" +
+      "💡 Tap the link to copy, then share it!",
       { parse_mode: "HTML" }
     );
-    log("/referral for " + userId + " points=" + user.points);
+    log("/referral for " + userId + " points=" + user.points + " rank=" + rankText);
+  }));
+
+  // ─── /leaderboard ──────────────────────────────────────────────────────────
+  bot.onText(/\/leaderboard/, groupOnly((msg) => {
+    const requesterId = String(msg.from?.id);
+    const chatId = msg.chat.id;
+
+    const allUsers = Object.entries(db.points)
+      .map(([id, u]) => ({ id, points: u.points, name: u.name, username: u.username }))
+      .filter(u => u.points > 0)
+      .sort((a, b) => b.points - a.points);
+
+    if (allUsers.length === 0) {
+      bot.sendMessage(chatId,
+        "📊 <b>Leaderboard</b>\n\n🚫 No referral points yet!\n\nUse /referral to get your link and start inviting friends.",
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+
+    const medals = ["🥇", "🥈", "🥉"];
+    const top10 = allUsers.slice(0, 10);
+
+    let text = "🏆 <b>Referral Leaderboard</b>\n\n";
+    top10.forEach((u, i) => {
+      const medal = medals[i] || "🔹";
+      const display = u.username ? "@" + u.username : u.name;
+      const isRequester = u.id === requesterId ? " ← you" : "";
+      text += medal + " <b>" + (i + 1) + ".</b> " + display + " — <b>" + u.points + " pts</b>" + isRequester + "\n";
+    });
+
+    // Show requester's rank if not in top 10
+    const requesterRank = allUsers.findIndex(u => u.id === requesterId);
+    if (requesterRank >= 10) {
+      const ru = allUsers[requesterRank];
+      const display = ru.username ? "@" + ru.username : ru.name;
+      text += "\n・・・\n🔸 <b>" + (requesterRank + 1) + ".</b> " + display + " — <b>" + ru.points + " pts</b> ← you";
+    }
+
+    text += "\n\n💡 Use /referral to get your invite link!";
+
+    bot.sendMessage(chatId, text, { parse_mode: "HTML" });
+    log("/leaderboard requested by " + requesterId);
   }));
 
   // ─── /scriptfreedragoncity ─────────────────────────────────────────────────
