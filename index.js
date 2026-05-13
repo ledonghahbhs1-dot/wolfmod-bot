@@ -140,8 +140,19 @@ async function startBot() {
       saveData(db);
 
       bot.sendMessage(msg.chat.id,
-        "👋 <b>Referral link accepted!</b>\n\nPlease join the group and send a message to complete the referral and award your friend 1 point. 🎉",
-        { parse_mode: "HTML" }
+        "👋 <b>Referral link accepted!</b>\n\n" +
+        "✅ Bước 1: Tham gia kênh & group bên dưới\n" +
+        "✅ Bước 2: Quay lại group và gửi 1 tin nhắn bất kỳ\n" +
+        "🎁 Bạn của bạn sẽ nhận được <b>+1 điểm</b> ngay sau đó!",
+        {
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "📢 Tham gia WOLF Team", url: "https://t.me/youtubewolfmod" }],
+              [{ text: "👥 Tham gia WOLF Team Chat", url: "https://t.me/+n-tXTX8vVvQ3OTk1" }]
+            ]
+          }
+        }
       );
       log("Pending referral stored: new=" + newUserId + " ref=" + referrerId + " chat=" + chatId);
       return;
