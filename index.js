@@ -163,7 +163,7 @@ async function startBot() {
       const chatId = msg.chat.id;
       const firstName = msg.from?.first_name ?? "there";
       bot.sendMessage(chatId,
-        "👋 Hello, <b>" + firstName + "</b>!\n\n🐉 Welcome to <b>WolfMod Bot</b>! 🎉\n\nCommands:\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n🏆 /leaderboard\n❓ /help",
+        "👋 Hello, <b>" + firstName + "</b>!\n\n🐉 Welcome to <b>WolfMod Bot</b>! 🎉\n\nCommands:\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n📊 /mystats\n🏆 /leaderboard\n❓ /help",
         { parse_mode: "HTML" }
       );
     }
@@ -172,7 +172,7 @@ async function startBot() {
   // ─── /help ─────────────────────────────────────────────────────────────────
   bot.onText(/\/help/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id,
-      "📖 <b>Command List</b>\n\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n🏆 /leaderboard\n🏠 /start\n\n⚡️ @wolfmodyt",
+      "📖 <b>Command List</b>\n\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n📊 /mystats\n🏆 /leaderboard\n🏠 /start\n\n⚡️ @wolfmodyt",
       { parse_mode: "HTML" }
     );
   }));
@@ -260,6 +260,34 @@ async function startBot() {
       { parse_mode: "HTML" }
     );
     log("/referral for " + userId + " points=" + user.points + " rank=" + rankText);
+  }));
+
+  // ─── /mystats ──────────────────────────────────────────────────────────────
+  bot.onText(/\/mystats/, groupOnly((msg) => {
+    const userId = String(msg.from?.id);
+    const name = msg.from?.first_name || "Unknown";
+    const username = msg.from?.username || "";
+    const chatId = msg.chat.id;
+
+    const user = getUser(userId, name, username);
+    const allUsers = Object.entries(db.points)
+      .map(([id, u]) => ({ id, points: u.points }))
+      .filter(u => u.points > 0)
+      .sort((a, b) => b.points - a.points);
+
+    const rank = allUsers.findIndex(u => u.id === userId) + 1;
+    const rankText = rank > 0 ? "#" + rank + " / " + allUsers.length : "Chưa có điểm";
+    const displayName = username ? "@" + username : name;
+
+    bot.sendMessage(chatId,
+      "📊 <b>Thống kê của bạn</b>\n\n" +
+      "👤 Người dùng: <b>" + displayName + "</b>\n" +
+      "⭐ Điểm referral: <b>" + user.points + "</b>\n" +
+      "🏆 Xếp hạng: <b>" + rankText + "</b>\n\n" +
+      "💡 Dùng /referral để lấy link mời bạn bè!",
+      { parse_mode: "HTML" }
+    );
+    log("/mystats for " + userId + " points=" + user.points + " rank=" + rankText);
   }));
 
   // ─── /leaderboard ──────────────────────────────────────────────────────────
