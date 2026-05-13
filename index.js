@@ -141,9 +141,9 @@ async function startBot() {
 
       bot.sendMessage(msg.chat.id,
         "👋 <b>Referral link accepted!</b>\n\n" +
-        "✅ Bước 1: Tham gia kênh & group bên dưới\n" +
-        "✅ Bước 2: Quay lại group và gửi 1 tin nhắn bất kỳ\n" +
-        "🎁 Bạn của bạn sẽ nhận được <b>+1 điểm</b> ngay sau đó!",
+        "✅ Step 1: Join the channel & group below\n" +
+        "✅ Step 2: Go back to the group and send any message\n" +
+        "🎁 Your friend will receive <b>+1 point</b> right after!",
         {
           parse_mode: "HTML",
           reply_markup: {
@@ -276,15 +276,15 @@ async function startBot() {
       .sort((a, b) => b.points - a.points);
 
     const rank = allUsers.findIndex(u => u.id === userId) + 1;
-    const rankText = rank > 0 ? "#" + rank + " / " + allUsers.length : "Chưa có điểm";
+    const rankText = user.points > 0 && rank > 0 ? "#" + rank + " / " + allUsers.length : "Not ranked yet";
     const displayName = username ? "@" + username : name;
 
     bot.sendMessage(chatId,
-      "📊 <b>Thống kê của bạn</b>\n\n" +
-      "👤 Người dùng: <b>" + displayName + "</b>\n" +
-      "⭐ Điểm referral: <b>" + user.points + "</b>\n" +
-      "🏆 Xếp hạng: <b>" + rankText + "</b>\n\n" +
-      "💡 Dùng /referral để lấy link mời bạn bè!",
+      "📊 <b>Your Stats</b>\n\n" +
+      "👤 User: <b>" + displayName + "</b>\n" +
+      "⭐ Referral points: <b>" + user.points + "</b>\n" +
+      "🏆 Rank: <b>" + rankText + "</b>\n\n" +
+      "💡 Use /referral to get your invite link!",
       { parse_mode: "HTML" }
     );
     log("/mystats for " + userId + " points=" + user.points + " rank=" + rankText);
