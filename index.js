@@ -154,8 +154,8 @@ function startBot() {
 
   // ─── Required channels for /referral ─────────────────────────────────────
   const REQUIRED_CHANNELS = [
-    { id: "@youtubewolfmod",   url: "https://t.me/youtubewolfmod",          label: "📺 Kênh YouTube WolfMod" },
-    { id: -1002770498924,      url: "https://t.me/+n-tXTX8vVvQ3OTk1",      label: "💬 Nhóm WolfMod Community" }
+    { id: "@youtubewolfmod",   url: "https://t.me/youtubewolfmod",          label: "📺 WolfMod YouTube Channel" },
+    { id: -1002770498924,      url: "https://t.me/+n-tXTX8vVvQ3OTk1",      label: "💬 WolfMod Community Group" }
   ];
 
   async function checkMembership(userId) {
@@ -195,9 +195,9 @@ function startBot() {
     if (notJoined.length > 0) {
       const joinButtons = notJoined.map(ch => [{ text: ch.label, url: ch.url }]);
       await bot.sendMessage(chatId,
-        "🚫 <b>Bạn cần tham gia đủ các kênh/nhóm sau để dùng lệnh /referral:</b>\n\n" +
+        "🚫 <b>You must join the following channels before using /referral:</b>\n\n" +
         notJoined.map(ch => "• " + ch.label).join("\n") +
-        "\n\n✅ Sau khi tham gia, gửi lại <code>/referral</code> để tiếp tục.",
+        "\n\n✅ After joining, send <code>/referral</code> again to continue.",
         {
           parse_mode: "HTML",
           reply_markup: { inline_keyboard: joinButtons }
