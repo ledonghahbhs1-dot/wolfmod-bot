@@ -148,8 +148,8 @@ async function startBot() {
           parse_mode: "HTML",
           reply_markup: {
             inline_keyboard: [
-              [{ text: "📢 Tham gia WOLF Team", url: "https://t.me/youtubewolfmod" }],
-              [{ text: "👥 Tham gia WOLF Team Chat", url: "https://t.me/+n-tXTX8vVvQ3OTk1" }]
+              [{ text: "📢 Join WOLF Team", url: "https://t.me/youtubewolfmod" }],
+              [{ text: "👥 Join WOLF Team Chat", url: "https://t.me/+n-tXTX8vVvQ3OTk1" }]
             ]
           }
         }
