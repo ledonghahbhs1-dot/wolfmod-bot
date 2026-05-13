@@ -152,14 +152,33 @@ function startBot() {
     );
   }));
 
+  // ─── Required channels for /referral ─────────────────────────────────────
+  const REQUIRED_CHANNELS = [
+    { id: "@youtubewolfmod",   url: "https://t.me/youtubewolfmod",          label: "📺 Kênh YouTube WolfMod" },
+    { id: -1002770498924,      url: "https://t.me/+n-tXTX8vVvQ3OTk1",      label: "💬 Nhóm WolfMod Community" }
+  ];
+
+  async function checkMembership(userId) {
+    const results = await Promise.all(
+      REQUIRED_CHANNELS.map(async (ch) => {
+        try {
+          const member = await bot.getChatMember(ch.id, userId);
+          const ok = ["creator", "administrator", "member", "restricted"].includes(member.status);
+          return { ...ch, joined: ok };
+        } catch {
+          return { ...ch, joined: false };
+        }
+      })
+    );
+    return results;
+  }
+
   // ─── /referral ─────────────────────────────────────────────────────────────
-  bot.onText(/\/referral/, groupOnly((msg) => {
+  bot.onText(/\/referral/, groupOnly(async (msg) => {
     const userId = String(msg.from?.id);
     const name = msg.from?.first_name || "Unknown";
     const username = msg.from?.username || "";
     const chatId = msg.chat.id;
-
-    const user = getUser(userId, name, username);
 
     if (!botUsername) {
       bot.sendMessage(chatId,
@@ -169,19 +188,33 @@ function startBot() {
       return;
     }
 
+    // Check required channel membership
+    const membership = await checkMembership(userId);
+    const notJoined = membership.filter(ch => !ch.joined);
+
+    if (notJoined.length > 0) {
+      const joinButtons = notJoined.map(ch => [{ text: ch.label, url: ch.url }]);
+      await bot.sendMessage(chatId,
+        "🚫 <b>Bạn cần tham gia đủ các kênh/nhóm sau để dùng lệnh /referral:</b>\n\n" +
+        notJoined.map(ch => "• " + ch.label).join("\n") +
+        "\n\n✅ Sau khi tham gia, gửi lại <code>/referral</code> để tiếp tục.",
+        {
+          parse_mode: "HTML",
+          reply_markup: { inline_keyboard: joinButtons }
+        }
+      );
+      log("/referral blocked for " + userId + " - missing: " + notJoined.map(c => c.id).join(", "));
+      return;
+    }
+
+    const user = getUser(userId, name, username);
+
     // Calculate rank among all users with points
     const allUsers = Object.entries(db.points)
       .map(([id, u]) => ({ id, points: u.points }))
       .sort((a, b) => b.points - a.points);
     const rank = allUsers.findIndex(u => u.id === userId) + 1;
     const rankText = rank > 0 ? "#" + rank + " / " + allUsers.length : "N/A";
-
-    // Count successful referrals (people they referred who joined)
-    const successfulReferrals = Object.values(db.joined)
-      .filter ? Object.keys(db.joined).filter(key => {
-        const joinedUserId = key.split("_")[0];
-        return db.points[joinedUserId]?._referredBy === userId;
-      }).length : 0;
 
     const referralLink = "https://t.me/" + botUsername + "?start=ref_" + userId + "_" + chatId;
     const displayName = username ? "@" + username : name;
