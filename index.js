@@ -489,15 +489,24 @@ function startBot() {
   // ─── Polling error handler ─────────────────────────────────────────────────
   bot.on("polling_error", (err) => {
     if (err.code === "ETELEGRAM" && err.message.includes("409")) {
-      log("409 conflict. Waiting 15s...");
+      log("⚠️  409 CONFLICT — Another bot instance is already running with this token!");
+      log("    PID: " + process.pid + " | Host: " + (process.env.HOSTNAME || process.env.RAILWAY_REPLICA_ID || "unknown"));
+      log("    This usually means the bot is running on 2 servers at the same time.");
+      log("    Stopping polling, retrying in 15s...");
       bot.stopPolling();
-      setTimeout(() => { log("Restarting..."); bot.startPolling(); }, 15000);
+      setTimeout(() => {
+        log("🔄 Retrying polling after 409 conflict...");
+        bot.startPolling();
+      }, 15000);
     } else {
-      log("Polling error: " + err.message);
+      log("❌ Polling error [" + (err.code || "NO_CODE") + "]: " + err.message);
     }
   });
 
-  log("✅ WolfMod Bot started (group-only + /getkey + /referral)");
+  log("✅ WolfMod Bot started");
+  log("   PID     : " + process.pid);
+  log("   Host    : " + (process.env.HOSTNAME || process.env.RAILWAY_REPLICA_ID || "unknown"));
+  log("   Platform: " + (process.env.RAILWAY_SERVICE_NAME ? "Railway (" + process.env.RAILWAY_SERVICE_NAME + ")" : "Local/Other"));
 }
 
 startBot();
