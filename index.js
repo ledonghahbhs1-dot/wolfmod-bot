@@ -1,10 +1,52 @@
 const TelegramBot = require("node-telegram-bot-api");
+const fs = require("fs");
+const path = require("path");
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) throw new Error("TELEGRAM_BOT_TOKEN is required");
 
 const log = (msg) => console.log("[" + new Date().toISOString() + "] " + msg);
 
+// ─── Data persistence ────────────────────────────────────────────────────────
+const DATA_FILE = path.join(__dirname, "data.json");
+
+function loadData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      return JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+    }
+  } catch (e) {
+    log("data.json load error: " + e.message);
+  }
+  return { points: {}, pending: {}, joined: {} };
+}
+
+function saveData(data) {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
+  } catch (e) {
+    log("data.json save error: " + e.message);
+  }
+}
+
+const db = loadData();
+
+function getUser(userId, name, username) {
+  if (!db.points[userId]) {
+    db.points[userId] = { points: 0, name: name || "Unknown", username: username || "" };
+    saveData(db);
+  }
+  return db.points[userId];
+}
+
+function addPoint(referrerId, referrerName, referrerUsername) {
+  const user = getUser(referrerId, referrerName, referrerUsername);
+  user.points += 1;
+  saveData(db);
+  return user.points;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function isGroupChat(msg) {
   return msg.chat.type === "group" || msg.chat.type === "supergroup";
 }
@@ -24,28 +66,124 @@ function groupOnly(handler) {
 }
 
 let bot;
+let botUsername = "";
 
 function startBot() {
   bot = new TelegramBot(token, {
-    polling: { interval: 2000, autoStart: true, params: { timeout: 10 } }
+    polling: {
+      interval: 2000,
+      autoStart: true,
+      params: { timeout: 10, allowed_updates: ["message", "chat_member"] }
+    }
   });
 
-  bot.onText(/\/start/, groupOnly((msg) => {
-    const chatId = msg.chat.id;
-    const firstName = msg.from?.first_name ?? "there";
-    bot.sendMessage(chatId,
-      "👋 Hello, <b>" + firstName + "</b>!\n\n🐉 Welcome to <b>WolfMod Bot</b>! 🎉\n\nCommands:\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n❓ /help",
-      { parse_mode: "HTML" }
-    );
-  }));
+  // Fetch bot username for referral links
+  bot.getMe().then((me) => {
+    botUsername = me.username;
+    log("Bot username: @" + botUsername);
+  }).catch((e) => log("getMe error: " + e.message));
 
+  // ─── /start (private + group) ──────────────────────────────────────────────
+  // Handles referral deep links in private: /start ref_{referrerId}_{chatId}
+  bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
+    const param = match?.[1]?.trim() || "";
+
+    // Private message with referral param
+    if (!isGroupChat(msg) && param.startsWith("ref_")) {
+      const parts = param.split("_");
+      // format: ref_{referrerId}_{chatId}
+      const referrerId = parts[1];
+      const chatId = parts[2];
+      const newUserId = String(msg.from?.id);
+
+      if (!referrerId || !chatId) {
+        bot.sendMessage(msg.chat.id,
+          "🚫 <b>Invalid referral link.</b>",
+          { parse_mode: "HTML" }
+        );
+        return;
+      }
+
+      if (newUserId === referrerId) {
+        bot.sendMessage(msg.chat.id,
+          "😅 <b>You cannot refer yourself!</b>",
+          { parse_mode: "HTML" }
+        );
+        return;
+      }
+
+      const joinKey = newUserId + "_" + chatId;
+      if (db.joined[joinKey]) {
+        bot.sendMessage(msg.chat.id,
+          "ℹ️ <b>You have already been counted for a referral in this group.</b>",
+          { parse_mode: "HTML" }
+        );
+        return;
+      }
+
+      // Store pending referral
+      db.pending[newUserId] = { referrerId, chatId };
+      saveData(db);
+
+      bot.sendMessage(msg.chat.id,
+        "👋 <b>Referral link accepted!</b>\n\nPlease join the group and send a message to complete the referral and award your friend 1 point. 🎉",
+        { parse_mode: "HTML" }
+      );
+      log("Pending referral stored: new=" + newUserId + " ref=" + referrerId + " chat=" + chatId);
+      return;
+    }
+
+    // Normal group /start
+    if (isGroupChat(msg)) {
+      const chatId = msg.chat.id;
+      const firstName = msg.from?.first_name ?? "there";
+      bot.sendMessage(chatId,
+        "👋 Hello, <b>" + firstName + "</b>!\n\n🐉 Welcome to <b>WolfMod Bot</b>! 🎉\n\nCommands:\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n❓ /help",
+        { parse_mode: "HTML" }
+      );
+    }
+  });
+
+  // ─── /help ─────────────────────────────────────────────────────────────────
   bot.onText(/\/help/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id,
-      "📖 <b>Command List</b>\n\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🏠 /start\n\n⚡️ @wolfmodyt",
+      "📖 <b>Command List</b>\n\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n🏠 /start\n\n⚡️ @wolfmodyt",
       { parse_mode: "HTML" }
     );
   }));
 
+  // ─── /referral ─────────────────────────────────────────────────────────────
+  bot.onText(/\/referral/, groupOnly((msg) => {
+    const userId = String(msg.from?.id);
+    const name = msg.from?.first_name || "Unknown";
+    const username = msg.from?.username || "";
+    const chatId = msg.chat.id;
+
+    const user = getUser(userId, name, username);
+
+    if (!botUsername) {
+      bot.sendMessage(chatId,
+        "⏳ Bot is still starting up, please try again in a moment.",
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+
+    const referralLink = "https://t.me/" + botUsername + "?start=ref_" + userId + "_" + chatId;
+
+    const displayName = username ? "@" + username : "<b>" + name + "</b>";
+    bot.sendMessage(chatId,
+      "🔗 <b>Referral Program</b>\n\n" +
+      "👤 User: " + displayName + "\n" +
+      "⭐ Points: <b>" + user.points + "</b>\n\n" +
+      "📢 Share your referral link below.\nWhen a new member clicks it, messages the bot, then joins this group — you earn <b>+1 point</b>!\n\n" +
+      "🔗 Your link:\n<code>" + referralLink + "</code>",
+      { parse_mode: "HTML" }
+    );
+    log("/referral for " + userId + " points=" + user.points);
+  }));
+
+  // ─── /scriptfreedragoncity ─────────────────────────────────────────────────
   bot.onText(/\/scriptfreedragoncity/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id, "📜 <b>Free Dragon City Script</b>\n\n🔗 Click the button below:", {
       parse_mode: "HTML",
@@ -53,6 +191,7 @@ function startBot() {
     });
   }));
 
+  // ─── /scriptvipdragoncity ──────────────────────────────────────────────────
   bot.onText(/\/scriptvipdragoncity/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id, "💎 <b>VIP Dragon City Script</b>\n\n🔗 Click the button below:", {
       parse_mode: "HTML",
@@ -60,6 +199,7 @@ function startBot() {
     });
   }));
 
+  // ─── /getfreekey ───────────────────────────────────────────────────────────
   bot.onText(/\/getfreekey/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id, "🔑 <b>Get Free Key</b>\n\n🌐 Click the button below:", {
       parse_mode: "HTML",
@@ -67,6 +207,7 @@ function startBot() {
     });
   }));
 
+  // ─── /getkey ───────────────────────────────────────────────────────────────
   bot.onText(/\/getkey(?:\s+(.+))?/, groupOnly(async (msg, match) => {
     const chatId = msg.chat.id;
     const username = match?.[1]?.trim().replace(/^@/, "") || null;
@@ -122,6 +263,7 @@ function startBot() {
     }
   }));
 
+  // ─── /tutorial ─────────────────────────────────────────────────────────────
   bot.onText(/\/tutorial/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id, "📖 <b>How To Use Guide</b>\n\n🔗 Click the button below:", {
       parse_mode: "HTML",
@@ -129,6 +271,7 @@ function startBot() {
     });
   }));
 
+  // ─── /paymentmethod ────────────────────────────────────────────────────────
   bot.onText(/\/paymentmethod/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id,
       "👉 <b>PAYMENT METHODS</b>\n\n☑️ PayPal: contact.wolfmod@gmail.com\n☑️ Binance ID: 1158594960\n☑️ SociaBuzz: <a href=\"https://sociabuzz.com/ldh/tribe\">LINK</a>\n☑️ VCB: 9382382864 | LE DONG HA\n\n☑️ Send by FRIENDS AND FAMILY OPTION!\n\nDM ⚡️ @wolfmodyt ⚡️ to confirm.",
@@ -136,6 +279,7 @@ function startBot() {
     );
   }));
 
+  // ─── /gameguardian ─────────────────────────────────────────────────────────
   bot.onText(/\/gameguardian/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id, "🛡 <b>GameGuardian by WolfMod</b>\n\n🔗 Click the button below:", {
       parse_mode: "HTML",
@@ -143,6 +287,7 @@ function startBot() {
     });
   }));
 
+  // ─── /vphonegaga ───────────────────────────────────────────────────────────
   bot.onText(/\/vphonegaga/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id, "📱 <b>VPhoneGaga Fix Rom</b>\n\n🔗 Click the button below:", {
       parse_mode: "HTML",
@@ -150,6 +295,7 @@ function startBot() {
     });
   }));
 
+  // ─── /bluestack ────────────────────────────────────────────────────────────
   bot.onText(/\/bluestack/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id, "💻 <b>BlueStack</b>\n\n🔗 Click the button below:", {
       parse_mode: "HTML",
@@ -157,9 +303,87 @@ function startBot() {
     });
   }));
 
+  // ─── New member joined group → award referral point ───────────────────────
   bot.on("message", (msg) => {
-    if ((msg.text ?? "").startsWith("/")) return;
-    if (!isGroupChat(msg)) {
+    // Handle new members joining
+    if (msg.new_chat_members && msg.new_chat_members.length > 0) {
+      const chatId = String(msg.chat.id);
+      for (const newMember of msg.new_chat_members) {
+        if (newMember.is_bot) continue;
+        const newUserId = String(newMember.id);
+        const joinKey = newUserId + "_" + chatId;
+
+        // Check if this user has a pending referral for this group
+        const pending = db.pending[newUserId];
+        if (pending && String(pending.chatId) === chatId && !db.joined[joinKey]) {
+          const referrerId = pending.referrerId;
+          const referrerData = db.points[referrerId] || {};
+          const newPoints = addPoint(referrerId, referrerData.name, referrerData.username);
+
+          // Mark as joined so it can't be counted twice
+          db.joined[joinKey] = true;
+          delete db.pending[newUserId];
+          saveData(db);
+
+          const referrerName = referrerData.name || "someone";
+          bot.sendMessage(msg.chat.id,
+            "🎉 <b>" + (newMember.first_name || "A new member") + "</b> joined via referral!\n\n" +
+            "⭐ <b>" + referrerName + "</b> earned <b>+1 point</b>! (Total: " + newPoints + ")",
+            { parse_mode: "HTML" }
+          );
+
+          // Also notify the referrer privately if possible
+          bot.sendMessage(referrerId,
+            "🎉 <b>+1 referral point!</b>\n\n" +
+            "<b>" + (newMember.first_name || "Someone") + "</b> joined the group using your link.\n" +
+            "⭐ Your total points: <b>" + newPoints + "</b>",
+            { parse_mode: "HTML" }
+          ).catch(() => {});
+
+          log("Referral awarded: referrer=" + referrerId + " newMember=" + newUserId + " points=" + newPoints);
+        }
+      }
+      return;
+    }
+
+    // Check if a pending referred user sent their first message in the group
+    // (fallback: some Telegram clients don't trigger new_chat_members properly)
+    if (isGroupChat(msg) && msg.from && !msg.text?.startsWith("/")) {
+      const senderId = String(msg.from.id);
+      const chatId = String(msg.chat.id);
+      const joinKey = senderId + "_" + chatId;
+      const pending = db.pending[senderId];
+
+      if (pending && String(pending.chatId) === chatId && !db.joined[joinKey]) {
+        const referrerId = pending.referrerId;
+        const referrerData = db.points[referrerId] || {};
+        const newPoints = addPoint(referrerId, referrerData.name, referrerData.username);
+
+        db.joined[joinKey] = true;
+        delete db.pending[senderId];
+        saveData(db);
+
+        const referrerName = referrerData.name || "someone";
+        bot.sendMessage(msg.chat.id,
+          "🎉 <b>" + (msg.from.first_name || "A new member") + "</b> joined via referral!\n\n" +
+          "⭐ <b>" + referrerName + "</b> earned <b>+1 point</b>! (Total: " + newPoints + ")",
+          { parse_mode: "HTML" }
+        );
+
+        bot.sendMessage(referrerId,
+          "🎉 <b>+1 referral point!</b>\n\n" +
+          "<b>" + (msg.from.first_name || "Someone") + "</b> joined the group using your link.\n" +
+          "⭐ Your total points: <b>" + newPoints + "</b>",
+          { parse_mode: "HTML" }
+        ).catch(() => {});
+
+        log("Referral awarded (first-message): referrer=" + referrerId + " newMember=" + senderId + " points=" + newPoints);
+        return;
+      }
+    }
+
+    // Reject non-command private messages
+    if (!msg.text?.startsWith("/") && !isGroupChat(msg)) {
       bot.sendMessage(msg.chat.id,
         "🚫 <b>This bot only works in group chats.</b>\n\nPlease add me to a group or supergroup to use my commands.",
         { parse_mode: "HTML" }
@@ -167,6 +391,7 @@ function startBot() {
     }
   });
 
+  // ─── Polling error handler ─────────────────────────────────────────────────
   bot.on("polling_error", (err) => {
     if (err.code === "ETELEGRAM" && err.message.includes("409")) {
       log("409 conflict. Waiting 15s...");
@@ -177,7 +402,7 @@ function startBot() {
     }
   });
 
-  log("✅ WolfMod Bot started (group-only + /getkey)");
+  log("✅ WolfMod Bot started (group-only + /getkey + /referral)");
 }
 
 startBot();
