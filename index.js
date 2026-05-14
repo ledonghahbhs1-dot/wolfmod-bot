@@ -360,11 +360,13 @@ async function startBot() {
   // ─── /getkey ───────────────────────────────────────────────────────────────
   bot.onText(/\/getkey(?:\s+(.+))?/, groupOnly(async (msg, match) => {
     const chatId = msg.chat.id;
-    const username = match?.[1]?.trim().replace(/^@/, "") || null;
+    const argUsername = match?.[1]?.trim().replace(/^@/, "") || null;
+    const senderUsername = msg.from?.username || null;
+    const username = argUsername || senderUsername;
 
     if (!username) {
       bot.sendMessage(chatId,
-        "❌ <b>Missing username!</b>\n\nUsage: <code>/getkey USERNAME</code>\nExample: <code>/getkey wolfmodyt</code>",
+        "❌ <b>Missing username!</b>\n\nUsage: <code>/getkey USERNAME</code>\nExample: <code>/getkey wolfmodyt</code>\n\n💡 Or set a Telegram username and use <code>/getkey</code> directly.",
         { parse_mode: "HTML" }
       );
       return;
@@ -386,18 +388,27 @@ async function startBot() {
         body: JSON.stringify({ username })
       });
 
+      const rawText = await res.text();
+      log("genkey status=" + res.status + " body=" + rawText.substring(0, 300));
+
       if (!res.ok) {
-        const errText = await res.text();
-        log("genkey error " + res.status + ": " + errText.substring(0, 200));
         await bot.editMessageText(
-          "❌ <b>Failed to generate key.</b>\nError " + res.status + ":\n<code>" + errText.substring(0, 150) + "</code>",
+          "❌ <b>Failed to generate key.</b>\nError " + res.status + ":\n<code>" + rawText.substring(0, 150) + "</code>",
           { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
         );
         return;
       }
 
-      const data = await res.json();
-      log("genkey response: " + JSON.stringify(data).substring(0, 300));
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        await bot.editMessageText(
+          "❌ <b>Unexpected response from server:</b>\n<code>" + rawText.substring(0, 200) + "</code>",
+          { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
+        );
+        return;
+      }
 
       if (!data.success) {
         await bot.editMessageText(
