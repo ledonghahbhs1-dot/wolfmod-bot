@@ -378,6 +378,7 @@ async function startBot() {
     try {
       const res = await fetch("https://wolfmod.xyz/api/genkey", {
         method: "POST",
+        redirect: "follow",
         headers: {
           "Content-Type": "application/json",
           "x-wolf-api-key": "WOLF_SUPER_SECRET_123456"
@@ -389,20 +390,35 @@ async function startBot() {
         const errText = await res.text();
         log("genkey error " + res.status + ": " + errText.substring(0, 200));
         await bot.editMessageText(
-          "❌ <b>Failed to generate key.</b>\nError " + res.status + ". Try again later.",
+          "❌ <b>Failed to generate key.</b>\nError " + res.status + ":\n<code>" + errText.substring(0, 150) + "</code>",
           { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
         );
         return;
       }
 
       const data = await res.json();
-      const key = data.key || data.license_key || "N/A";
-      const shortUrl = data.short_url || data.shortUrl || data.url || "N/A";
+      log("genkey response: " + JSON.stringify(data).substring(0, 300));
 
-      await bot.editMessageText(
-        "✅ <b>Key Generated!</b>\n\n👤 Username: <b>@" + username + "</b>\n🗝 Key: <code>" + key + "</code>\n🔗 Link: " + shortUrl + "\n\n⚠️ Key is <b>pending activation</b>. Click the link to activate.",
-        { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
-      );
+      if (!data.success) {
+        await bot.editMessageText(
+          "❌ <b>Failed to generate key.</b>\n" + (data.message || "Unknown error."),
+          { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
+        );
+        return;
+      }
+
+      const link4m   = data.shortUrls?.link4m   || data.short_url || data.shortUrl || data.url || "N/A";
+      const workink  = data.shortUrls?.workink   || null;
+      const message  = data.message || "Complete the link to activate your key.";
+
+      let reply = "✅ <b>Key Generated!</b>\n\n" +
+        "👤 Username: <b>@" + username + "</b>\n\n" +
+        "🔗 <b>Activate your key:</b>\n";
+      if (link4m !== "N/A") reply += "• Link4m: " + link4m + "\n";
+      if (workink)           reply += "• Workink: " + workink + "\n";
+      reply += "\n⚠️ " + message;
+
+      await bot.editMessageText(reply, { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" });
       log("/getkey success for @" + username);
     } catch (err) {
       log("/getkey error: " + err.message);
