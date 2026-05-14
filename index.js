@@ -407,18 +407,25 @@ async function startBot() {
         return;
       }
 
-      const link4m   = data.shortUrls?.link4m   || data.short_url || data.shortUrl || data.url || "N/A";
-      const workink  = data.shortUrls?.workink   || null;
-      const message  = data.message || "Complete the link to activate your key.";
+      const link4m  = data.shortUrls?.link4m  || data.short_url || data.shortUrl || data.url || null;
+      const workink = data.shortUrls?.workink || null;
+      const message = data.message || "Complete the link to activate your key.";
 
-      let reply = "✅ <b>Key Generated!</b>\n\n" +
+      const buttons = [];
+      if (link4m)  buttons.push([{ text: "🔗 Activate via Link4m",  url: link4m }]);
+      if (workink) buttons.push([{ text: "🔗 Activate via Workink", url: workink }]);
+
+      const reply = "✅ <b>Key Generated!</b>\n\n" +
         "👤 Username: <b>@" + username + "</b>\n\n" +
-        "🔗 <b>Activate your key:</b>\n";
-      if (link4m !== "N/A") reply += "• Link4m: " + link4m + "\n";
-      if (workink)           reply += "• Workink: " + workink + "\n";
-      reply += "\n⚠️ " + message;
+        "⚠️ " + message + "\n\n" +
+        "👇 <b>Choose a link to activate:</b>";
 
-      await bot.editMessageText(reply, { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" });
+      await bot.editMessageText(reply, {
+        chat_id: chatId,
+        message_id: loadingMsg.message_id,
+        parse_mode: "HTML",
+        reply_markup: buttons.length > 0 ? { inline_keyboard: buttons } : undefined
+      });
       log("/getkey success for @" + username);
     } catch (err) {
       log("/getkey error: " + err.message);
