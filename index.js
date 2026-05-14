@@ -391,9 +391,23 @@ async function startBot() {
       const rawText = await res.text();
       log("genkey status=" + res.status + " body=" + rawText.substring(0, 300));
 
+      const isHtml = rawText.trimStart().toLowerCase().startsWith("<!doctype") ||
+                     rawText.trimStart().toLowerCase().startsWith("<html");
+
       if (!res.ok) {
+        const errDisplay = isHtml
+          ? "Server returned an HTML error page (status " + res.status + "). The API may be down."
+          : rawText.substring(0, 150);
         await bot.editMessageText(
-          "❌ <b>Failed to generate key.</b>\nError " + res.status + ":\n<code>" + rawText.substring(0, 150) + "</code>",
+          "❌ <b>Failed to generate key.</b>\nError " + res.status + ": " + errDisplay,
+          { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
+        );
+        return;
+      }
+
+      if (isHtml) {
+        await bot.editMessageText(
+          "❌ <b>Unexpected response from server.</b>\nThe API returned an HTML page instead of data. Please try again later.",
           { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
         );
         return;
@@ -403,8 +417,9 @@ async function startBot() {
       try {
         data = JSON.parse(rawText);
       } catch {
+        const safe = rawText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         await bot.editMessageText(
-          "❌ <b>Unexpected response from server:</b>\n<code>" + rawText.substring(0, 200) + "</code>",
+          "❌ <b>Unexpected response from server:</b>\n<code>" + safe.substring(0, 200) + "</code>",
           { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
         );
         return;
