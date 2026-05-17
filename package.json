@@ -4,9 +4,11 @@
   "description": "WolfMod Dragon City Telegram Bot",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "discord": "node discord-bot.js"
   },
   "dependencies": {
+    "discord.js": "^14.26.4",
     "node-telegram-bot-api": "^0.66.0"
   }
 }
