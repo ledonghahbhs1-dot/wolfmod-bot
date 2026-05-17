@@ -1,4 +1,8 @@
-const { Client, GatewayIntentBits, Partials, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const {
+  Client, GatewayIntentBits, Partials,
+  EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
+  REST, Routes, SlashCommandBuilder
+} = require("discord.js");
 const fs = require("fs");
 const path = require("path");
 
@@ -12,30 +16,20 @@ const DATA_FILE = path.join(__dirname, "discord-data.json");
 
 function loadData() {
   try {
-    if (fs.existsSync(DATA_FILE)) {
-      return JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-    }
-  } catch (e) {
-    log("discord-data.json load error: " + e.message);
-  }
+    if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  } catch (e) { log("data load error: " + e.message); }
   return { points: {}, joined: {} };
 }
 
 function saveData(data) {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
-  } catch (e) {
-    log("discord-data.json save error: " + e.message);
-  }
+  try { fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8"); }
+  catch (e) { log("data save error: " + e.message); }
 }
 
 const db = loadData();
 
 function getUser(userId, name) {
-  if (!db.points[userId]) {
-    db.points[userId] = { points: 0, name: name || "Unknown" };
-    saveData(db);
-  }
+  if (!db.points[userId]) { db.points[userId] = { points: 0, name: name || "Unknown" }; saveData(db); }
   return db.points[userId];
 }
 
@@ -46,105 +40,139 @@ function addPoint(referrerId, referrerName) {
   return user.points;
 }
 
+// ─── Slash command definitions ────────────────────────────────────────────────
+const commands = [
+  new SlashCommandBuilder().setName("help").setDescription("Xem toàn bộ lệnh của bot"),
+  new SlashCommandBuilder().setName("scriptfreedragoncity").setDescription("Nhận script Dragon City miễn phí"),
+  new SlashCommandBuilder().setName("scriptvipdragoncity").setDescription("Nhận script VIP Dragon City"),
+  new SlashCommandBuilder().setName("getfreekey").setDescription("Nhận key kích hoạt miễn phí"),
+  new SlashCommandBuilder()
+    .setName("getkey")
+    .setDescription("Tạo key kích hoạt theo username")
+    .addStringOption(opt =>
+      opt.setName("username").setDescription("Username cần tạo key").setRequired(false)
+    ),
+  new SlashCommandBuilder().setName("tutorial").setDescription("Hướng dẫn sử dụng"),
+  new SlashCommandBuilder().setName("paymentmethod").setDescription("Xem các phương thức thanh toán"),
+  new SlashCommandBuilder().setName("gameguardian").setDescription("Tải GameGuardian by WolfMod"),
+  new SlashCommandBuilder().setName("vphonegaga").setDescription("Tải VPhoneGaga Fix Rom"),
+  new SlashCommandBuilder().setName("bluestack").setDescription("Tải BlueStack"),
+  new SlashCommandBuilder().setName("referral").setDescription("Xem link referral và điểm của bạn"),
+  new SlashCommandBuilder()
+    .setName("joinref")
+    .setDescription("Xác nhận bạn được giới thiệu vào server")
+    .addStringOption(opt =>
+      opt.setName("code").setDescription("Mã referral (ref_USERID)").setRequired(true)
+    ),
+  new SlashCommandBuilder().setName("mystats").setDescription("Xem thống kê referral của bạn"),
+  new SlashCommandBuilder().setName("leaderboard").setDescription("Xem bảng xếp hạng referral"),
+].map(cmd => cmd.toJSON());
+
+// ─── Register slash commands globally ────────────────────────────────────────
+async function registerCommands(clientId) {
+  const rest = new REST({ version: "10" }).setToken(token);
+  try {
+    log("Đang đăng ký " + commands.length + " slash commands...");
+    await rest.put(Routes.applicationCommands(clientId), { body: commands });
+    log("✅ Đăng ký slash commands thành công!");
+  } catch (err) {
+    log("❌ Lỗi đăng ký slash commands: " + err.message);
+  }
+}
+
 // ─── Discord Client ───────────────────────────────────────────────────────────
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers,
   ],
-  partials: [Partials.Message, Partials.Channel, Partials.GuildMember],
+  partials: [Partials.GuildMember],
 });
 
-client.once("ready", () => {
-  log("✅ Discord Bot logged in as " + client.user.tag);
+client.once("clientReady", async (c) => {
+  log("✅ Discord Bot logged in as " + c.user.tag);
+  await registerCommands(c.user.id);
 });
 
-// ─── Message handler ──────────────────────────────────────────────────────────
-client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
-  if (!message.guild) {
-    return message.reply("🚫 **This bot only works in servers.**\nPlease add me to a Discord server to use my commands.");
+// ─── Slash command handler ────────────────────────────────────────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+
+  const { commandName, user, guild } = interaction;
+  const userId = user.id;
+  const userName = user.username;
+
+  if (!guild) {
+    return interaction.reply({ content: "🚫 **Bot chỉ hoạt động trong server.**", ephemeral: true });
   }
 
-  const content = message.content.trim();
-  if (!content.startsWith("/")) return;
-
-  const args = content.slice(1).split(/\s+/);
-  const cmd = args[0].toLowerCase();
-
-  const userId = message.author.id;
-  const userName = message.author.username;
-  const channelId = message.channel.id;
-
-  // ── !start / !help ──────────────────────────────────────────────────────────
-  if (cmd === "start" || cmd === "help") {
+  // /help ─────────────────────────────────────────────────────────────────────
+  if (commandName === "help") {
     const embed = new EmbedBuilder()
       .setColor(0xf5a623)
       .setTitle("👋 Welcome to WolfMod Bot!")
-      .setDescription("🐉 **WolfMod Dragon City Bot**\n\nAvailable commands:")
+      .setDescription("🐉 **WolfMod Dragon City Bot**\n\nDanh sách lệnh có sẵn:")
       .addFields(
-        { name: "📜 /scriptfreedragoncity", value: "Get the free Dragon City script", inline: false },
-        { name: "💎 /scriptvipdragoncity", value: "Get the VIP Dragon City script", inline: false },
-        { name: "🔑 /getfreekey", value: "Get a free activation key", inline: false },
-        { name: "🗝 /getkey USERNAME", value: "Generate a key for a username", inline: false },
-        { name: "📖 /tutorial", value: "How to use guide", inline: false },
-        { name: "💳 /paymentmethod", value: "View payment methods", inline: false },
-        { name: "🛡 /gameguardian", value: "Download GameGuardian", inline: false },
-        { name: "📱 /vphonegaga", value: "Download VPhoneGaga", inline: false },
-        { name: "💻 /bluestack", value: "Download BlueStack", inline: false },
-        { name: "🔗 /referral", value: "Get your referral link & stats", inline: false },
-        { name: "📊 /mystats", value: "View your referral stats", inline: false },
-        { name: "🏆 /leaderboard", value: "View top referrers", inline: false },
+        { name: "📜 /scriptfreedragoncity", value: "Nhận script Dragon City miễn phí", inline: false },
+        { name: "💎 /scriptvipdragoncity", value: "Nhận script VIP Dragon City", inline: false },
+        { name: "🔑 /getfreekey", value: "Nhận key kích hoạt miễn phí", inline: false },
+        { name: "🗝 /getkey [username]", value: "Tạo key theo username", inline: false },
+        { name: "📖 /tutorial", value: "Hướng dẫn sử dụng", inline: false },
+        { name: "💳 /paymentmethod", value: "Xem phương thức thanh toán", inline: false },
+        { name: "🛡 /gameguardian", value: "Tải GameGuardian", inline: false },
+        { name: "📱 /vphonegaga", value: "Tải VPhoneGaga", inline: false },
+        { name: "💻 /bluestack", value: "Tải BlueStack", inline: false },
+        { name: "🔗 /referral", value: "Xem link & điểm referral", inline: false },
+        { name: "📊 /mystats", value: "Xem thống kê cá nhân", inline: false },
+        { name: "🏆 /leaderboard", value: "Bảng xếp hạng referral", inline: false },
       )
       .setFooter({ text: "⚡ @wolfmodyt" });
-    return message.reply({ embeds: [embed] });
+    return interaction.reply({ embeds: [embed] });
   }
 
-  // ── !scriptfreedragoncity ───────────────────────────────────────────────────
-  if (cmd === "scriptfreedragoncity") {
+  // /scriptfreedragoncity ─────────────────────────────────────────────────────
+  if (commandName === "scriptfreedragoncity") {
     const embed = new EmbedBuilder()
       .setColor(0x00b894)
       .setTitle("📜 Free Dragon City Script")
-      .setDescription("Click the button below to get the free script:");
-    const channelUrl = "https://discord.com/channels/" + message.guild.id + "/1503691698918653962";
+      .setDescription("Nhấn nút bên dưới để nhận script miễn phí:");
+    const channelUrl = "https://discord.com/channels/" + guild.id + "/1503691698918653962";
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setLabel("📜 Get Free Script").setStyle(ButtonStyle.Link).setURL(channelUrl)
     );
-    return message.reply({ embeds: [embed], components: [row] });
+    return interaction.reply({ embeds: [embed], components: [row] });
   }
 
-  // ── !scriptvipdragoncity ────────────────────────────────────────────────────
-  if (cmd === "scriptvipdragoncity") {
+  // /scriptvipdragoncity ──────────────────────────────────────────────────────
+  if (commandName === "scriptvipdragoncity") {
     const embed = new EmbedBuilder()
       .setColor(0x6c5ce7)
       .setTitle("💎 VIP Dragon City Script")
-      .setDescription("Click the button below to get the VIP script:");
-    const channelUrl = "https://discord.com/channels/" + message.guild.id + "/1503691650306936852";
+      .setDescription("Nhấn nút bên dưới để nhận script VIP:");
+    const channelUrl = "https://discord.com/channels/" + guild.id + "/1503691650306936852";
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setLabel("💎 Get VIP Script").setStyle(ButtonStyle.Link).setURL(channelUrl)
     );
-    return message.reply({ embeds: [embed], components: [row] });
+    return interaction.reply({ embeds: [embed], components: [row] });
   }
 
-  // ── !getfreekey ─────────────────────────────────────────────────────────────
-  if (cmd === "getfreekey") {
+  // /getfreekey ───────────────────────────────────────────────────────────────
+  if (commandName === "getfreekey") {
     const embed = new EmbedBuilder()
       .setColor(0xfdcb6e)
       .setTitle("🔑 Get Free Key")
-      .setDescription("Click the button below to get your free key:");
+      .setDescription("Nhấn nút bên dưới để nhận key miễn phí:");
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setLabel("🔑 Get Free Key").setStyle(ButtonStyle.Link).setURL("https://www.wolfmod.xyz/get-free-key")
     );
-    return message.reply({ embeds: [embed], components: [row] });
+    return interaction.reply({ embeds: [embed], components: [row] });
   }
 
-  // ── !getkey [USERNAME] ──────────────────────────────────────────────────────
-  if (cmd === "getkey") {
-    const username = args[1]?.replace(/^@/, "") || userName;
+  // /getkey ───────────────────────────────────────────────────────────────────
+  if (commandName === "getkey") {
+    const username = interaction.options.getString("username") || userName;
 
-    const loadingMsg = await message.reply("⏳ Generating key for **@" + username + "**...");
+    await interaction.deferReply();
 
     try {
       const res = await fetch("https://wolfmod.xyz/api/genkey", {
@@ -164,109 +192,109 @@ client.on("messageCreate", async (message) => {
                      rawText.trimStart().toLowerCase().startsWith("<html");
 
       if (!res.ok || isHtml) {
-        return loadingMsg.edit("❌ **Failed to generate key.**\n" + (isHtml ? "Server returned an unexpected response." : "Error " + res.status));
+        return interaction.editReply("❌ **Không thể tạo key.**\n" + (isHtml ? "Server trả về phản hồi không hợp lệ." : "Lỗi " + res.status));
       }
 
       let data;
       try { data = JSON.parse(rawText); } catch {
-        return loadingMsg.edit("❌ **Unexpected response from server.**");
+        return interaction.editReply("❌ **Phản hồi không hợp lệ từ server.**");
       }
 
       if (!data.success) {
-        return loadingMsg.edit("❌ **Failed to generate key.**\n" + (data.message || "Unknown error."));
+        return interaction.editReply("❌ **Không thể tạo key.**\n" + (data.message || "Unknown error."));
       }
 
-      const link4m  = data.shortUrls?.link4m  || data.short_url || data.shortUrl || data.url || null;
+      const link4m  = data.shortUrls?.link4m || data.short_url || data.shortUrl || data.url || null;
       const workink = data.shortUrls?.workink || null;
       const msgText = data.message || "Complete the link to activate your key.";
 
       const embed = new EmbedBuilder()
         .setColor(0x00b894)
-        .setTitle("✅ Key Generated!")
+        .setTitle("✅ Key đã được tạo!")
         .addFields(
           { name: "👤 Username", value: "@" + username, inline: true },
-          { name: "⚠️ Note", value: msgText, inline: false }
+          { name: "⚠️ Lưu ý", value: msgText, inline: false }
         )
-        .setDescription("👇 **Choose a link to activate:**");
+        .setDescription("👇 **Chọn link để kích hoạt:**");
 
       const row = new ActionRowBuilder();
       if (link4m)  row.addComponents(new ButtonBuilder().setLabel("🔗 Activate via Link4m").setStyle(ButtonStyle.Link).setURL(link4m));
       if (workink) row.addComponents(new ButtonBuilder().setLabel("🔗 Activate via Workink").setStyle(ButtonStyle.Link).setURL(workink));
 
-      await loadingMsg.edit({ content: "", embeds: [embed], components: row.components.length > 0 ? [row] : [] });
+      await interaction.editReply({ embeds: [embed], components: row.components.length > 0 ? [row] : [] });
       log("/getkey success for @" + username);
     } catch (err) {
       log("/getkey error: " + err.message);
-      await loadingMsg.edit("❌ **Network error.**\nCould not reach key server.\n`" + err.message + "`");
+      await interaction.editReply("❌ **Lỗi mạng.**\nKhông thể kết nối server.\n`" + err.message + "`");
     }
     return;
   }
 
-  // ── !tutorial ───────────────────────────────────────────────────────────────
-  if (cmd === "tutorial") {
+  // /tutorial ─────────────────────────────────────────────────────────────────
+  if (commandName === "tutorial") {
     const embed = new EmbedBuilder()
       .setColor(0x74b9ff)
-      .setTitle("📖 How To Use Guide")
-      .setDescription("Click the button below to view the tutorial:");
+      .setTitle("📖 Hướng Dẫn Sử Dụng")
+      .setDescription("Nhấn nút bên dưới để xem hướng dẫn:");
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setLabel("📖 View Tutorial").setStyle(ButtonStyle.Link).setURL("https://t.me/c/2770498924/10617")
     );
-    return message.reply({ embeds: [embed], components: [row] });
+    return interaction.reply({ embeds: [embed], components: [row] });
   }
 
-  // ── !paymentmethod ──────────────────────────────────────────────────────────
-  if (cmd === "paymentmethod") {
+  // /paymentmethod ────────────────────────────────────────────────────────────
+  if (commandName === "paymentmethod") {
     const embed = new EmbedBuilder()
       .setColor(0x55efc4)
-      .setTitle("💳 Payment Methods")
+      .setTitle("💳 Phương Thức Thanh Toán")
       .addFields(
         { name: "💵 PayPal", value: "contact.wolfmod@gmail.com", inline: false },
         { name: "🔶 Binance ID", value: "1158594960", inline: false },
         { name: "🛒 SociaBuzz", value: "[LINK](https://sociabuzz.com/ldh/tribe)", inline: false },
         { name: "🏦 VCB", value: "9382382864 | LE DONG HA", inline: false },
       )
-      .setDescription("☑️ Send via **FRIENDS AND FAMILY OPTION**!\n\nDM ⚡ @wolfmodyt to confirm.");
-    return message.reply({ embeds: [embed] });
+      .setDescription("☑️ Gửi qua **FRIENDS AND FAMILY OPTION**!\n\nDM ⚡ @wolfmodyt để xác nhận.");
+    return interaction.reply({ embeds: [embed] });
   }
 
-  // ── !gameguardian ───────────────────────────────────────────────────────────
-  if (cmd === "gameguardian") {
+  // /gameguardian ─────────────────────────────────────────────────────────────
+  if (commandName === "gameguardian") {
     const embed = new EmbedBuilder()
       .setColor(0xe17055)
       .setTitle("🛡 GameGuardian by WolfMod")
-      .setDescription("Click the button below to download:");
+      .setDescription("Nhấn nút bên dưới để tải:");
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setLabel("🛡 Download GameGuardian").setStyle(ButtonStyle.Link).setURL("https://www.mediafire.com/file/gb22k0yerlunq19/[GG_V101.1]+BY+WOLFMOD.zip/file")
     );
-    return message.reply({ embeds: [embed], components: [row] });
+    return interaction.reply({ embeds: [embed], components: [row] });
   }
 
-  // ── !vphonegaga ─────────────────────────────────────────────────────────────
-  if (cmd === "vphonegaga") {
+  // /vphonegaga ───────────────────────────────────────────────────────────────
+  if (commandName === "vphonegaga") {
     const embed = new EmbedBuilder()
       .setColor(0xa29bfe)
       .setTitle("📱 VPhoneGaga Fix Rom")
-      .setDescription("Click the button below to download:");
+      .setDescription("Nhấn nút bên dưới để tải:");
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setLabel("📱 Download VPhoneGaga").setStyle(ButtonStyle.Link).setURL("https://www.mediafire.com/file/vgnkp09ib3nij0f/Vphonegaga_Fix_Rom.apk")
     );
-    return message.reply({ embeds: [embed], components: [row] });
+    return interaction.reply({ embeds: [embed], components: [row] });
   }
 
-  // ── !bluestack ──────────────────────────────────────────────────────────────
-  if (cmd === "bluestack") {
+  // /bluestack ────────────────────────────────────────────────────────────────
+  if (commandName === "bluestack") {
     const embed = new EmbedBuilder()
       .setColor(0x0984e3)
       .setTitle("💻 BlueStack")
-      .setDescription("Click the button below to download:");
+      .setDescription("Nhấn nút bên dưới để tải:");
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setLabel("💻 Download BlueStack").setStyle(ButtonStyle.Link).setURL("https://mega.nz/file/Wd0yQD6a#Df68i0BypTiQ7Spgk5jXx4j_ly-tm0dGnvMY_weVms8")
     );
-    return message.reply({ embeds: [embed], components: [row] });
+    return interaction.reply({ embeds: [embed], components: [row] });
   }
 
-  // ── !referral ───────────────────────────────────────────────────────────────
-  if (cmd === "referral") {
+  // /referral ─────────────────────────────────────────────────────────────────
+  if (commandName === "referral") {
     const user = getUser(userId, userName);
     const allUsers = Object.entries(db.points)
       .map(([id, u]) => ({ id, points: u.points }))
@@ -274,47 +302,45 @@ client.on("messageCreate", async (message) => {
     const rank = allUsers.findIndex(u => u.id === userId) + 1;
     const rankText = rank > 0 ? "#" + rank + " / " + allUsers.length : "N/A";
 
-    const referralLink = "https://discord.com/channels/" + message.guild.id + "/" + channelId + " — ask @" + userName + " for an invite!";
-
     const embed = new EmbedBuilder()
       .setColor(0xf5a623)
-      .setTitle("🔗 Referral Program")
+      .setTitle("🔗 Chương Trình Referral")
       .addFields(
         { name: "👤 User", value: "@" + userName, inline: true },
-        { name: "⭐ Points", value: String(user.points), inline: true },
-        { name: "🏆 Rank", value: rankText, inline: true },
+        { name: "⭐ Điểm", value: String(user.points), inline: true },
+        { name: "🏆 Xếp hạng", value: rankText, inline: true },
       )
       .setDescription(
-        "**How it works:**\n" +
-        "1️⃣ Share your referral code below\n" +
-        "2️⃣ New member joins this server & mentions your code\n" +
-        "3️⃣ Run `/confirmref @YourName` — they get you **+1 point**!\n\n" +
-        "🔗 **Your referral code:** `ref_" + userId + "`\n\n" +
-        "💡 Tell new members to type `/joinref ref_" + userId + "` when they arrive!"
+        "**Cách hoạt động:**\n" +
+        "1️⃣ Chia sẻ mã referral của bạn\n" +
+        "2️⃣ Thành viên mới vào server & dùng `/joinref` với mã của bạn\n" +
+        "3️⃣ Bạn nhận được **+1 điểm**!\n\n" +
+        "🔗 **Mã referral của bạn:** `ref_" + userId + "`\n\n" +
+        "💡 Bảo thành viên mới gõ `/joinref ref_" + userId + "`"
       )
-      .setFooter({ text: "Use /leaderboard to see top referrers" });
-    return message.reply({ embeds: [embed] });
+      .setFooter({ text: "Dùng /leaderboard để xem bảng xếp hạng" });
+    return interaction.reply({ embeds: [embed] });
   }
 
-  // ── !joinref <code> ─────────────────────────────────────────────────────────
-  if (cmd === "joinref") {
-    const code = args[1];
-    if (!code || !code.startsWith("ref_")) {
-      return message.reply("❌ **Invalid code!**\nUsage: `/joinref ref_USERID`\nExample: `/joinref ref_123456789`");
+  // /joinref ──────────────────────────────────────────────────────────────────
+  if (commandName === "joinref") {
+    const code = interaction.options.getString("code");
+    if (!code.startsWith("ref_")) {
+      return interaction.reply({ content: "❌ **Mã không hợp lệ!**\nVí dụ: `ref_123456789`", ephemeral: true });
     }
 
     const referrerId = code.replace("ref_", "");
     if (referrerId === userId) {
-      return message.reply("😅 **You cannot refer yourself!**");
+      return interaction.reply({ content: "😅 **Bạn không thể tự refer chính mình!**", ephemeral: true });
     }
 
-    const joinKey = userId + "_" + message.guild.id;
+    const joinKey = userId + "_" + guild.id;
     if (db.joined[joinKey]) {
-      return message.reply("ℹ️ **You have already been counted for a referral in this server.**");
+      return interaction.reply({ content: "ℹ️ **Bạn đã được tính referral trong server này rồi.**", ephemeral: true });
     }
 
     if (!db.points[referrerId]) {
-      return message.reply("❌ **Referral code not found.** The user may not have used this bot yet.");
+      return interaction.reply({ content: "❌ **Mã referral không tìm thấy.** Người dùng có thể chưa dùng bot này.", ephemeral: true });
     }
 
     const referrerData = db.points[referrerId];
@@ -326,19 +352,18 @@ client.on("messageCreate", async (message) => {
 
     const embed = new EmbedBuilder()
       .setColor(0x00b894)
-      .setTitle("🎉 Referral Successful!")
+      .setTitle("🎉 Referral Thành Công!")
       .setDescription(
-        "**@" + userName + "** joined via referral!\n\n" +
-        "⭐ **" + referrerData.name + "** earned **+1 point**! (Total: " + newPoints + ")"
+        "**@" + userName + "** đã tham gia qua referral!\n\n" +
+        "⭐ **" + referrerData.name + "** nhận được **+1 điểm**! (Tổng: " + newPoints + ")"
       );
 
-    message.reply({ embeds: [embed] });
+    await interaction.reply({ embeds: [embed] });
 
-    // Notify referrer
     try {
       const referrerUser = await client.users.fetch(referrerId);
       await referrerUser.send(
-        "🎉 **+1 referral point!**\n\n**@" + userName + "** joined using your code.\n⭐ Your total points: **" + newPoints + "**"
+        "🎉 **+1 điểm referral!**\n\n**@" + userName + "** đã tham gia server bằng mã của bạn.\n⭐ Tổng điểm: **" + newPoints + "**"
       );
     } catch {}
 
@@ -346,8 +371,8 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // ── !mystats ────────────────────────────────────────────────────────────────
-  if (cmd === "mystats") {
+  // /mystats ──────────────────────────────────────────────────────────────────
+  if (commandName === "mystats") {
     const user = getUser(userId, userName);
     const allUsers = Object.entries(db.points)
       .map(([id, u]) => ({ id, points: u.points }))
@@ -355,29 +380,29 @@ client.on("messageCreate", async (message) => {
       .sort((a, b) => b.points - a.points);
 
     const rank = allUsers.findIndex(u => u.id === userId) + 1;
-    const rankText = user.points > 0 && rank > 0 ? "#" + rank + " / " + allUsers.length : "Not ranked yet";
+    const rankText = user.points > 0 && rank > 0 ? "#" + rank + " / " + allUsers.length : "Chưa có hạng";
 
     const embed = new EmbedBuilder()
       .setColor(0x6c5ce7)
-      .setTitle("📊 Your Stats")
+      .setTitle("📊 Thống Kê Của Bạn")
       .addFields(
         { name: "👤 User", value: "@" + userName, inline: true },
-        { name: "⭐ Points", value: String(user.points), inline: true },
-        { name: "🏆 Rank", value: rankText, inline: true },
+        { name: "⭐ Điểm referral", value: String(user.points), inline: true },
+        { name: "🏆 Xếp hạng", value: rankText, inline: true },
       )
-      .setFooter({ text: "Use /referral to get your invite code!" });
-    return message.reply({ embeds: [embed] });
+      .setFooter({ text: "Dùng /referral để lấy mã mời!" });
+    return interaction.reply({ embeds: [embed] });
   }
 
-  // ── !leaderboard ────────────────────────────────────────────────────────────
-  if (cmd === "leaderboard") {
+  // /leaderboard ──────────────────────────────────────────────────────────────
+  if (commandName === "leaderboard") {
     const allUsers = Object.entries(db.points)
       .map(([id, u]) => ({ id, points: u.points, name: u.name }))
       .filter(u => u.points > 0)
       .sort((a, b) => b.points - a.points);
 
     if (allUsers.length === 0) {
-      return message.reply("📊 **Leaderboard**\n\n🚫 No referral points yet!\n\nUse `/referral` to get your code and start inviting friends.");
+      return interaction.reply("📊 **Bảng Xếp Hạng**\n\n🚫 Chưa có điểm referral nào!\n\nDùng `/referral` để lấy mã mời.");
     }
 
     const medals = ["🥇", "🥈", "🥉"];
@@ -385,38 +410,31 @@ client.on("messageCreate", async (message) => {
     let desc = "";
     top10.forEach((u, i) => {
       const medal = medals[i] || "🔹";
-      const isYou = u.id === userId ? " ← you" : "";
-      desc += medal + " **" + (i + 1) + ".** " + u.name + " — **" + u.points + " pts**" + isYou + "\n";
+      const isYou = u.id === userId ? " ← bạn" : "";
+      desc += medal + " **" + (i + 1) + ".** " + u.name + " — **" + u.points + " điểm**" + isYou + "\n";
     });
 
     const requesterRank = allUsers.findIndex(u => u.id === userId);
     if (requesterRank >= 10) {
       const ru = allUsers[requesterRank];
-      desc += "\n・・・\n🔸 **" + (requesterRank + 1) + ".** " + ru.name + " — **" + ru.points + " pts** ← you";
+      desc += "\n・・・\n🔸 **" + (requesterRank + 1) + ".** " + ru.name + " — **" + ru.points + " điểm** ← bạn";
     }
 
     const embed = new EmbedBuilder()
       .setColor(0xf5a623)
-      .setTitle("🏆 Referral Leaderboard")
+      .setTitle("🏆 Bảng Xếp Hạng Referral")
       .setDescription(desc)
-      .setFooter({ text: "Use /referral to get your invite code!" });
-    return message.reply({ embeds: [embed] });
+      .setFooter({ text: "Dùng /referral để lấy mã mời!" });
+    return interaction.reply({ embeds: [embed] });
   }
 });
 
 // ─── Error handling ───────────────────────────────────────────────────────────
-client.on("error", (err) => {
-  log("❌ Discord client error: " + err.message);
-});
-
-process.on("unhandledRejection", (err) => {
-  log("❌ Unhandled rejection: " + (err?.message || err));
-});
+client.on("error", (err) => log("❌ Discord client error: " + err.message));
+process.on("unhandledRejection", (err) => log("❌ Unhandled rejection: " + (err?.message || err)));
 
 // ─── Login ────────────────────────────────────────────────────────────────────
-client.login(token).then(() => {
-  log("🔌 Discord bot connecting...");
-}).catch((err) => {
+client.login(token).catch((err) => {
   log("❌ Failed to login: " + err.message);
   process.exit(1);
 });
