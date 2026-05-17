@@ -69,7 +69,7 @@ client.on("messageCreate", async (message) => {
   }
 
   const content = message.content.trim();
-  if (!content.startsWith("!")) return;
+  if (!content.startsWith("/")) return;
 
   const args = content.slice(1).split(/\s+/);
   const cmd = args[0].toLowerCase();
@@ -85,18 +85,18 @@ client.on("messageCreate", async (message) => {
       .setTitle("👋 Welcome to WolfMod Bot!")
       .setDescription("🐉 **WolfMod Dragon City Bot**\n\nAvailable commands:")
       .addFields(
-        { name: "📜 !scriptfreedragoncity", value: "Get the free Dragon City script", inline: false },
-        { name: "💎 !scriptvipdragoncity", value: "Get the VIP Dragon City script", inline: false },
-        { name: "🔑 !getfreekey", value: "Get a free activation key", inline: false },
-        { name: "🗝 !getkey USERNAME", value: "Generate a key for a username", inline: false },
-        { name: "📖 !tutorial", value: "How to use guide", inline: false },
-        { name: "💳 !paymentmethod", value: "View payment methods", inline: false },
-        { name: "🛡 !gameguardian", value: "Download GameGuardian", inline: false },
-        { name: "📱 !vphonegaga", value: "Download VPhoneGaga", inline: false },
-        { name: "💻 !bluestack", value: "Download BlueStack", inline: false },
-        { name: "🔗 !referral", value: "Get your referral link & stats", inline: false },
-        { name: "📊 !mystats", value: "View your referral stats", inline: false },
-        { name: "🏆 !leaderboard", value: "View top referrers", inline: false },
+        { name: "📜 /scriptfreedragoncity", value: "Get the free Dragon City script", inline: false },
+        { name: "💎 /scriptvipdragoncity", value: "Get the VIP Dragon City script", inline: false },
+        { name: "🔑 /getfreekey", value: "Get a free activation key", inline: false },
+        { name: "🗝 /getkey USERNAME", value: "Generate a key for a username", inline: false },
+        { name: "📖 /tutorial", value: "How to use guide", inline: false },
+        { name: "💳 /paymentmethod", value: "View payment methods", inline: false },
+        { name: "🛡 /gameguardian", value: "Download GameGuardian", inline: false },
+        { name: "📱 /vphonegaga", value: "Download VPhoneGaga", inline: false },
+        { name: "💻 /bluestack", value: "Download BlueStack", inline: false },
+        { name: "🔗 /referral", value: "Get your referral link & stats", inline: false },
+        { name: "📊 /mystats", value: "View your referral stats", inline: false },
+        { name: "🏆 /leaderboard", value: "View top referrers", inline: false },
       )
       .setFooter({ text: "⚡ @wolfmodyt" });
     return message.reply({ embeds: [embed] });
@@ -194,9 +194,9 @@ client.on("messageCreate", async (message) => {
       if (workink) row.addComponents(new ButtonBuilder().setLabel("🔗 Activate via Workink").setStyle(ButtonStyle.Link).setURL(workink));
 
       await loadingMsg.edit({ content: "", embeds: [embed], components: row.components.length > 0 ? [row] : [] });
-      log("!getkey success for @" + username);
+      log("/getkey success for @" + username);
     } catch (err) {
-      log("!getkey error: " + err.message);
+      log("/getkey error: " + err.message);
       await loadingMsg.edit("❌ **Network error.**\nCould not reach key server.\n`" + err.message + "`");
     }
     return;
@@ -288,11 +288,11 @@ client.on("messageCreate", async (message) => {
         "**How it works:**\n" +
         "1️⃣ Share your referral code below\n" +
         "2️⃣ New member joins this server & mentions your code\n" +
-        "3️⃣ Run `!confirmref @YourName` — they get you **+1 point**!\n\n" +
+        "3️⃣ Run `/confirmref @YourName` — they get you **+1 point**!\n\n" +
         "🔗 **Your referral code:** `ref_" + userId + "`\n\n" +
-        "💡 Tell new members to type `!joinref ref_" + userId + "` when they arrive!"
+        "💡 Tell new members to type `/joinref ref_" + userId + "` when they arrive!"
       )
-      .setFooter({ text: "Use !leaderboard to see top referrers" });
+      .setFooter({ text: "Use /leaderboard to see top referrers" });
     return message.reply({ embeds: [embed] });
   }
 
@@ -300,7 +300,7 @@ client.on("messageCreate", async (message) => {
   if (cmd === "joinref") {
     const code = args[1];
     if (!code || !code.startsWith("ref_")) {
-      return message.reply("❌ **Invalid code!**\nUsage: `!joinref ref_USERID`\nExample: `!joinref ref_123456789`");
+      return message.reply("❌ **Invalid code!**\nUsage: `/joinref ref_USERID`\nExample: `/joinref ref_123456789`");
     }
 
     const referrerId = code.replace("ref_", "");
@@ -365,7 +365,7 @@ client.on("messageCreate", async (message) => {
         { name: "⭐ Points", value: String(user.points), inline: true },
         { name: "🏆 Rank", value: rankText, inline: true },
       )
-      .setFooter({ text: "Use !referral to get your invite code!" });
+      .setFooter({ text: "Use /referral to get your invite code!" });
     return message.reply({ embeds: [embed] });
   }
 
@@ -377,7 +377,7 @@ client.on("messageCreate", async (message) => {
       .sort((a, b) => b.points - a.points);
 
     if (allUsers.length === 0) {
-      return message.reply("📊 **Leaderboard**\n\n🚫 No referral points yet!\n\nUse `!referral` to get your code and start inviting friends.");
+      return message.reply("📊 **Leaderboard**\n\n🚫 No referral points yet!\n\nUse `/referral` to get your code and start inviting friends.");
     }
 
     const medals = ["🥇", "🥈", "🥉"];
@@ -399,7 +399,7 @@ client.on("messageCreate", async (message) => {
       .setColor(0xf5a623)
       .setTitle("🏆 Referral Leaderboard")
       .setDescription(desc)
-      .setFooter({ text: "Use !referral to get your invite code!" });
+      .setFooter({ text: "Use /referral to get your invite code!" });
     return message.reply({ embeds: [embed] });
   }
 });
