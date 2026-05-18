@@ -45,6 +45,13 @@ if (!token) throw new Error("DISCORD_TOKEN is required");
 
 const log = (msg) => console.log("[" + new Date().toISOString() + "] " + msg);
 
+// ─── Whitelist channel IDs (bot chỉ hoạt động trong các kênh này) ─────────────
+const ALLOWED_CHANNEL_IDS = (process.env.ALLOWED_CHANNEL_IDS || "1503691818649518091").split(",").map(s => s.trim());
+
+// ─── Anti-spam: cooldown per user (giây) ─────────────────────────────────────
+const COOLDOWN_SECONDS = 5;
+const cooldowns = new Map();
+
 // ─── Data persistence ─────────────────────────────────────────────────────────
 const DATA_FILE = path.join(__dirname, "discord-data.json");
 
@@ -139,6 +146,26 @@ client.on("interactionCreate", async (interaction) => {
   if (!guild) {
     return interaction.reply({ content: "🚫 **This bot only works inside servers.**", ephemeral: true });
   }
+
+  // ─── Whitelist channel check ──────────────────────────────────────────────
+  if (!ALLOWED_CHANNEL_IDS.includes(interaction.channelId)) {
+    return interaction.reply({
+      content: "🚫 **Bot không hoạt động trong kênh này.**\nVui lòng dùng bot trong kênh được chỉ định.",
+      ephemeral: true
+    });
+  }
+
+  // ─── Anti-spam cooldown check ─────────────────────────────────────────────
+  const now = Date.now();
+  const lastUsed = cooldowns.get(userId) || 0;
+  const remaining = COOLDOWN_SECONDS * 1000 - (now - lastUsed);
+  if (remaining > 0) {
+    return interaction.reply({
+      content: `⏱ **Chậm thôi!** Vui lòng chờ **${Math.ceil(remaining / 1000)} giây** trước khi dùng lệnh tiếp theo.`,
+      ephemeral: true
+    });
+  }
+  cooldowns.set(userId, now);
 
   // /help ─────────────────────────────────────────────────────────────────────
   if (commandName === "help") {
