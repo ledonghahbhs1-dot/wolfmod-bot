@@ -1,0 +1,26 @@
+Railway deployment failed — Build Error
+
+Run npm install locally to regenerate package-lock.json, then commit and push the updated file. The build failed because discord.js was added to package.json but package-lock.json was never updated to include it or its dependencies. npm ci requires these files to be in sync and exits immediately when dependencies are missing from the lock file.
+
+Repository: https://github.com/ledonghahbhs1-dot/wolfmod-bot
+Branch: main · Commit: 4b1b210 — Migrate to real Discord Slash Commands with autocomplete
+Deployment ID: b13b8b80-f12a-466c-bb90-20cf667397a3
+Service ID: 2f76c85e-bf90-41f3-966d-95cf305c1116
+Environment ID: 77245a61-5359-4776-860e-98d9a4512a71
+
+---
+
+## Problem
+Service: wolfmod-bot (REPO type, Railpack/Node builder). The build fails at the npm ci step with: "npm ci can only install packages when your package.json and package-lock.json or npm-shrinkwrap.json are in sync." 24+ packages are listed as missing from the lock file, starting with discord.js@14.26.4. The build exits with code 1.
+
+## Diagnosis
+package.json (repo root) declares `"discord.js": "^14.26.4"` under dependencies. However, package-lock.json's root packages[""] entry only lists `node-telegram-bot-api` as a dependency — discord.js and all its transitive dependencies (@discordjs/builders, @discordjs/rest, @discordjs/ws, @discordjs/collection, etc.) are entirely absent from the lock file. This mismatch has persisted across three consecutive failed deployments since commit 570c70ee first added discord.js to package.json without regenerating the lock file. npm ci refuses to proceed when the lock file is out of sync.
+
+## Fix
+1. On your local machine, in the repo root directory, run: `npm install`
+   - This regenerates package-lock.json to include discord.js@14.26.4 and all its transitive dependencies.
+   - Current state: package-lock.json root packages[""] only lists node-telegram-bot-api, missing discord.js entirely.
+   - After fix: package-lock.json will include discord.js and all required sub-packages.
+2. Commit the updated package-lock.json: `git add package-lock.json && git commit -m "Update package-lock.json with discord.js dependencies"`
+3. Push to the main branch: `git push origin main`
+   - This will trigger a new Railway deployment that can successfully run npm ci.
