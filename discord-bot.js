@@ -3,6 +3,37 @@ const {
   EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
   REST, Routes, SlashCommandBuilder
 } = require("discord.js");
+const https = require("https");
+const http = require("http");
+
+function httpsPost(urlStr, body, headers, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 5) return reject(new Error("Too many redirects"));
+    const url = new URL(urlStr);
+    const bodyBuf = Buffer.isBuffer(body) ? body : Buffer.from(body, "utf8");
+    const lib = url.protocol === "https:" ? https : http;
+    const options = {
+      hostname: url.hostname,
+      port: url.port || (url.protocol === "https:" ? 443 : 80),
+      path: url.pathname + url.search,
+      method: "POST",
+      headers: { ...headers, "Content-Length": bodyBuf.length }
+    };
+    const req = lib.request(options, (res2) => {
+      if (res2.statusCode >= 300 && res2.statusCode < 400 && res2.headers.location) {
+        res2.resume();
+        return resolve(httpsPost(res2.headers.location, bodyBuf, headers, redirects + 1));
+      }
+      let data = "";
+      res2.on("data", chunk => { data += chunk; });
+      res2.on("end", () => resolve({ status: res2.statusCode, ok: res2.statusCode >= 200 && res2.statusCode < 300, text: data }));
+    });
+    req.setTimeout(15000, () => { req.destroy(new Error("Request timeout")); });
+    req.on("error", reject);
+    req.write(bodyBuf);
+    req.end();
+  });
+}
 const fs = require("fs");
 const path = require("path");
 
@@ -175,32 +206,11 @@ client.on("interactionCreate", async (interaction) => {
     await interaction.deferReply();
 
     try {
-      const { status: resStatus, ok: resOk, text: rawText } = await new Promise((resolve, reject) => {
-        const https = require("https");
-        const bodyStr = JSON.stringify({ username });
-        const bodyBuf = Buffer.from(bodyStr, "utf8");
-        const options = {
-          hostname: "wolfmod.xyz",
-          path: "/api/genkey",
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Content-Length": bodyBuf.length,
-            "x-wolf-api-key": "WOLF_SUPER_SECRET_123456"
-          }
-        };
-        const req = https.request(options, (res2) => {
-          let data = "";
-          res2.on("data", chunk => { data += chunk; });
-          res2.on("end", () => {
-            resolve({ status: res2.statusCode, ok: res2.statusCode >= 200 && res2.statusCode < 300, text: data });
-          });
-        });
-        req.setTimeout(15000, () => { req.destroy(new Error("Request timeout")); });
-        req.on("error", reject);
-        req.write(bodyBuf);
-        req.end();
-      });
+      const { status: resStatus, ok: resOk, text: rawText } = await httpsPost(
+        "https://wolfmod.xyz/api/genkey",
+        JSON.stringify({ username }),
+        { "Content-Type": "application/json", "x-wolf-api-key": "WOLF_SUPER_SECRET_123456" }
+      );
       log("genkey status=" + resStatus + " body=" + rawText.substring(0, 300));
 
       const isHtml = rawText.trimStart().toLowerCase().startsWith("<!doctype") ||
