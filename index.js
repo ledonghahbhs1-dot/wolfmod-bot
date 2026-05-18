@@ -388,15 +388,23 @@ async function startBot() {
     );
 
     try {
-      const res = await fetch("https://wolfmod.xyz/api/genkey", {
-        method: "POST",
-        redirect: "follow",
-        headers: {
-          "Content-Type": "application/json",
-          "x-wolf-api-key": "WOLF_SUPER_SECRET_123456"
-        },
-        body: JSON.stringify({ username })
-      });
+      const controller = new AbortController();
+      const fetchTimeout = setTimeout(() => controller.abort(), 15000);
+      let res;
+      try {
+        res = await fetch("https://wolfmod.xyz/api/genkey", {
+          method: "POST",
+          redirect: "follow",
+          signal: controller.signal,
+          headers: {
+            "Content-Type": "application/json",
+            "x-wolf-api-key": "WOLF_SUPER_SECRET_123456"
+          },
+          body: JSON.stringify({ username })
+        });
+      } finally {
+        clearTimeout(fetchTimeout);
+      }
 
       const rawText = await res.text();
       log("genkey status=" + res.status + " body=" + rawText.substring(0, 300));
@@ -464,9 +472,13 @@ async function startBot() {
       });
       log("/getkey success for @" + username);
     } catch (err) {
-      log("/getkey error: " + err.message);
+      const cause = err.cause ? (" | cause: " + err.cause) : "";
+      log("/getkey error: " + err.message + cause);
+      const userMsg = err.name === "AbortError"
+        ? "⏱ Request timed out. The key server may be slow or down."
+        : "Could not reach key server.\n<code>" + err.message + "</code>";
       await bot.editMessageText(
-        "❌ <b>Network error.</b>\nCould not reach key server.\n<code>" + err.message + "</code>",
+        "❌ <b>Network error.</b>\n" + userMsg,
         { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
       );
     }

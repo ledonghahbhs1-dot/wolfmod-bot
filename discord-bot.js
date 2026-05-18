@@ -175,15 +175,23 @@ client.on("interactionCreate", async (interaction) => {
     await interaction.deferReply();
 
     try {
-      const res = await fetch("https://wolfmod.xyz/api/genkey", {
-        method: "POST",
-        redirect: "follow",
-        headers: {
-          "Content-Type": "application/json",
-          "x-wolf-api-key": "WOLF_SUPER_SECRET_123456"
-        },
-        body: JSON.stringify({ username })
-      });
+      const controller = new AbortController();
+      const fetchTimeout = setTimeout(() => controller.abort(), 15000);
+      let res;
+      try {
+        res = await fetch("https://wolfmod.xyz/api/genkey", {
+          method: "POST",
+          redirect: "follow",
+          signal: controller.signal,
+          headers: {
+            "Content-Type": "application/json",
+            "x-wolf-api-key": "WOLF_SUPER_SECRET_123456"
+          },
+          body: JSON.stringify({ username })
+        });
+      } finally {
+        clearTimeout(fetchTimeout);
+      }
 
       const rawText = await res.text();
       log("genkey status=" + res.status + " body=" + rawText.substring(0, 300));
@@ -224,8 +232,12 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.editReply({ embeds: [embed], components: row.components.length > 0 ? [row] : [] });
       log("/getkey success for @" + username);
     } catch (err) {
-      log("/getkey error: " + err.message);
-      await interaction.editReply("❌ **Network error.**\nCould not reach the key server.\n`" + err.message + "`");
+      const cause = err.cause ? (" | cause: " + err.cause) : "";
+      log("/getkey error: " + err.message + cause);
+      const userMsg = err.name === "AbortError"
+        ? "⏱ Request timed out. The key server may be slow or down."
+        : "Could not reach the key server.\n`" + err.message + "`";
+      await interaction.editReply("❌ **Network error.**\n" + userMsg);
     }
     return;
   }
