@@ -73,15 +73,25 @@ async function startBot() {
   // This prevents 409 conflicts from stale deployments
   log("🔄 Clearing existing Telegram sessions...");
   try {
-    const clearBot = new TelegramBot(token, { polling: false });
-    await clearBot.deleteWebhook({ drop_pending_updates: true });
-    log("✅ Session cleared, starting polling...");
+    const https = require("https");
+    await new Promise((resolve) => {
+      https.get(`https://api.telegram.org/bot${token}/deleteWebhook?drop_pending_updates=true`, (res) => {
+        res.on("data", () => {});
+        res.on("end", () => {
+          log("✅ Session cleared, starting polling...");
+          resolve();
+        });
+      }).on("error", (e) => {
+        log("⚠️  Could not clear session: " + e.message);
+        resolve();
+      });
+    });
   } catch (e) {
     log("⚠️  Could not clear session: " + e.message);
   }
 
   // Small delay to let Telegram register the session reset
-  await new Promise(r => setTimeout(r, 2000));
+  await new Promise(r => setTimeout(r, 3000));
 
   bot = new TelegramBot(token, {
     polling: {
