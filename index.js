@@ -480,9 +480,11 @@ async function startBot() {
       if (workink) buttons.push([{ text: "🔗 Activate via Workink", url: workink }]);
 
       const reply = "✅ <b>Key Generated!</b>\n\n" +
-        "👤 Username: <b>@" + username + "</b>\n\n" +
+        "👤 Username: <b>@" + username + "</b>\n" +
+        "⏳ Expires in: <b>2 hours</b>\n\n" +
         "⚠️ " + message + "\n\n" +
-        "👇 <b>Choose a link to activate:</b>";
+        "👇 <b>Choose a link to activate:</b>\n\n" +
+        "<i>🗑️ This message will be deleted in 30 seconds.</i>";
 
       await bot.editMessageText(reply, {
         chat_id: chatId,
@@ -491,6 +493,10 @@ async function startBot() {
         reply_markup: buttons.length > 0 ? { inline_keyboard: buttons } : undefined
       });
       log("/getkey success for @" + username);
+
+      setTimeout(async () => {
+        try { await bot.deleteMessage(chatId, loadingMsg.message_id); } catch {}
+      }, 30000);
     } catch (err) {
       const cause = err.cause ? (" | cause: " + err.cause) : "";
       log("/getkey error: " + err.message + cause);

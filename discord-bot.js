@@ -268,9 +268,11 @@ client.on("interactionCreate", async (interaction) => {
         .setTitle("✅ Key Generated!")
         .addFields(
           { name: "👤 Username", value: "@" + username, inline: true },
+          { name: "⏳ Expires In", value: "2 hours", inline: true },
           { name: "⚠️ Note", value: msgText, inline: false }
         )
-        .setDescription("👇 **Choose a link to activate:**");
+        .setDescription("👇 **Choose a link to activate:**")
+        .setFooter({ text: "🗑️ This message will be deleted in 30 seconds." });
 
       const row = new ActionRowBuilder();
       if (link4m)  row.addComponents(new ButtonBuilder().setLabel("🔗 Activate via Link4m").setStyle(ButtonStyle.Link).setURL(link4m));
@@ -278,6 +280,10 @@ client.on("interactionCreate", async (interaction) => {
 
       await interaction.editReply({ embeds: [embed], components: row.components.length > 0 ? [row] : [] });
       log("/getkey success for @" + username);
+
+      setTimeout(async () => {
+        try { await interaction.deleteReply(); } catch {}
+      }, 30000);
     } catch (err) {
       const cause = err.cause ? (" | cause: " + err.cause) : "";
       log("/getkey error: " + err.message + cause);
