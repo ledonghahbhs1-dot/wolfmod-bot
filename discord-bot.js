@@ -175,32 +175,39 @@ client.on("interactionCreate", async (interaction) => {
     await interaction.deferReply();
 
     try {
-      const controller = new AbortController();
-      const fetchTimeout = setTimeout(() => controller.abort(), 15000);
-      let res;
-      try {
-        res = await fetch("https://wolfmod.xyz/api/genkey", {
+      const { status: resStatus, ok: resOk, text: rawText } = await new Promise((resolve, reject) => {
+        const https = require("https");
+        const bodyStr = JSON.stringify({ username });
+        const bodyBuf = Buffer.from(bodyStr, "utf8");
+        const options = {
+          hostname: "wolfmod.xyz",
+          path: "/api/genkey",
           method: "POST",
-          redirect: "follow",
-          signal: controller.signal,
           headers: {
             "Content-Type": "application/json",
+            "Content-Length": bodyBuf.length,
             "x-wolf-api-key": "WOLF_SUPER_SECRET_123456"
-          },
-          body: JSON.stringify({ username })
+          }
+        };
+        const req = https.request(options, (res2) => {
+          let data = "";
+          res2.on("data", chunk => { data += chunk; });
+          res2.on("end", () => {
+            resolve({ status: res2.statusCode, ok: res2.statusCode >= 200 && res2.statusCode < 300, text: data });
+          });
         });
-      } finally {
-        clearTimeout(fetchTimeout);
-      }
-
-      const rawText = await res.text();
-      log("genkey status=" + res.status + " body=" + rawText.substring(0, 300));
+        req.setTimeout(15000, () => { req.destroy(new Error("Request timeout")); });
+        req.on("error", reject);
+        req.write(bodyBuf);
+        req.end();
+      });
+      log("genkey status=" + resStatus + " body=" + rawText.substring(0, 300));
 
       const isHtml = rawText.trimStart().toLowerCase().startsWith("<!doctype") ||
                      rawText.trimStart().toLowerCase().startsWith("<html");
 
-      if (!res.ok || isHtml) {
-        return interaction.editReply("❌ **Failed to generate key.**\n" + (isHtml ? "Server returned an unexpected response." : "Error " + res.status));
+      if (!resOk || isHtml) {
+        return interaction.editReply("❌ **Failed to generate key.**\n" + (isHtml ? "Server returned an unexpected response." : "Error " + resStatus));
       }
 
       let data;

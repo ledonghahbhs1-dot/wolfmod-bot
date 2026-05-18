@@ -388,36 +388,45 @@ async function startBot() {
     );
 
     try {
-      const controller = new AbortController();
-      const fetchTimeout = setTimeout(() => controller.abort(), 15000);
-      let res;
-      try {
-        res = await fetch("https://wolfmod.xyz/api/genkey", {
+      const rawText = await new Promise((resolve, reject) => {
+        const https = require("https");
+        const bodyStr = JSON.stringify({ username });
+        const bodyBuf = Buffer.from(bodyStr, "utf8");
+        const options = {
+          hostname: "wolfmod.xyz",
+          path: "/api/genkey",
           method: "POST",
-          redirect: "follow",
-          signal: controller.signal,
           headers: {
             "Content-Type": "application/json",
+            "Content-Length": bodyBuf.length,
             "x-wolf-api-key": "WOLF_SUPER_SECRET_123456"
-          },
-          body: JSON.stringify({ username })
+          }
+        };
+        const req = https.request(options, (res2) => {
+          let data = "";
+          res2.on("data", chunk => { data += chunk; });
+          res2.on("end", () => {
+            resolve({ status: res2.statusCode, ok: res2.statusCode >= 200 && res2.statusCode < 300, text: data });
+          });
         });
-      } finally {
-        clearTimeout(fetchTimeout);
-      }
+        req.setTimeout(15000, () => { req.destroy(new Error("Request timeout")); });
+        req.on("error", reject);
+        req.write(bodyBuf);
+        req.end();
+      });
+      const { status: resStatus, ok: resOk, text: resText } = rawText;
+      log("genkey status=" + resStatus + " body=" + resText.substring(0, 300));
+      const actualRawText = resText;
 
-      const rawText = await res.text();
-      log("genkey status=" + res.status + " body=" + rawText.substring(0, 300));
+      const isHtml = actualRawText.trimStart().toLowerCase().startsWith("<!doctype") ||
+                     actualRawText.trimStart().toLowerCase().startsWith("<html");
 
-      const isHtml = rawText.trimStart().toLowerCase().startsWith("<!doctype") ||
-                     rawText.trimStart().toLowerCase().startsWith("<html");
-
-      if (!res.ok) {
+      if (!resOk) {
         const errDisplay = isHtml
-          ? "Server returned an HTML error page (status " + res.status + "). The API may be down."
-          : rawText.substring(0, 150);
+          ? "Server returned an HTML error page (status " + resStatus + "). The API may be down."
+          : actualRawText.substring(0, 150);
         await bot.editMessageText(
-          "❌ <b>Failed to generate key.</b>\nError " + res.status + ": " + errDisplay,
+          "❌ <b>Failed to generate key.</b>\nError " + resStatus + ": " + errDisplay,
           { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
         );
         return;
@@ -433,9 +442,9 @@ async function startBot() {
 
       let data;
       try {
-        data = JSON.parse(rawText);
+        data = JSON.parse(actualRawText);
       } catch {
-        const safe = rawText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const safe = actualRawText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         await bot.editMessageText(
           "❌ <b>Unexpected response from server:</b>\n<code>" + safe.substring(0, 200) + "</code>",
           { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
