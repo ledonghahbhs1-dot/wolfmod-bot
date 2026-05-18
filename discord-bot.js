@@ -22,7 +22,10 @@ function httpsPost(urlStr, body, headers, redirects = 0) {
     const req = lib.request(options, (res2) => {
       if (res2.statusCode >= 300 && res2.statusCode < 400 && res2.headers.location) {
         res2.resume();
-        return resolve(httpsPost(res2.headers.location, bodyBuf, headers, redirects + 1));
+        const loc = res2.headers.location;
+        const absLoc = loc.startsWith("http") ? loc : url.protocol + "//" + url.hostname + loc;
+        console.log("[httpsPost] redirect " + res2.statusCode + " → " + absLoc);
+        return resolve(httpsPost(absLoc, bodyBuf, headers, redirects + 1));
       }
       let data = "";
       res2.on("data", chunk => { data += chunk; });
