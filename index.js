@@ -140,7 +140,8 @@ async function startBot() {
   // Fetch bot username for referral links
   bot.getMe().then((me) => {
     botUsername = me.username;
-    log("Bot username: @" + botUsername);
+    log("✨ Telegram Bot authenticated as: @" + botUsername);
+    log("🆔 Bot ID: " + me.id);
   }).catch((e) => log("getMe error: " + e.message));
 
   // ─── /start (private + group) ──────────────────────────────────────────────
@@ -652,7 +653,7 @@ async function startBot() {
     }
   });
 
-  log("✅ WolfMod Bot started");
+  log("🚀 WolfMod Bot Service is now Online");
   log("   PID     : " + process.pid);
   log("   Host    : " + (process.env.HOSTNAME || process.env.RAILWAY_REPLICA_ID || "unknown"));
   log("   Platform: " + (process.env.RAILWAY_SERVICE_NAME ? "Railway (" + process.env.RAILWAY_SERVICE_NAME + ")" : "Local/Other"));
