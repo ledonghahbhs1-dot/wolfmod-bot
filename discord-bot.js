@@ -130,7 +130,7 @@ const client = new Client({
   partials: [Partials.GuildMember],
 });
 
-client.once("clientReady", async (c) => {
+client.once("ready", async (c) => {
   log("✅ Discord Bot logged in as " + c.user.tag);
   await registerCommands(c.user.id);
 });

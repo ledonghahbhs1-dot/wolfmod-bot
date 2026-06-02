@@ -1,4 +1,14 @@
 const { spawn } = require("child_process");
+const http = require("http");
+
+// Tạo một HTTP server cơ bản để giữ ứng dụng hoạt động và phản hồi như một "website"
+const PORT = process.env.PORT || 8080;
+http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("WolfMod Bot is online and running!\n");
+}).listen(PORT, () => {
+  console.log(`[Web] Health check server listening on port ${PORT}`);
+});
 
 function startProcess(name, script) {
   const proc = spawn("node", [script], { stdio: "inherit" });
