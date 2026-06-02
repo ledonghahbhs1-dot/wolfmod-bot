@@ -37,7 +37,9 @@ const fs = require("fs");
 const path = require("path");
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
+const WOLF_API_KEY = process.env.WOLF_API_KEY;
 if (!token) throw new Error("TELEGRAM_BOT_TOKEN is required");
+if (!WOLF_API_KEY) throw new Error("WOLF_API_KEY is required");
 
 const log = (msg) => console.log("[" + new Date().toISOString() + "] " + msg);
 
@@ -425,7 +427,7 @@ async function startBot() {
       const { status: resStatus, ok: resOk, text: actualRawText } = await httpsPost(
         "https://wolfmod.xyz/api/genkey",
         JSON.stringify({ username }),
-        { "Content-Type": "application/json", "x-wolf-api-key": "WOLF_SUPER_SECRET_123456" }
+        { "Content-Type": "application/json", "x-wolf-api-key": WOLF_API_KEY }
       );
       log("genkey status=" + resStatus + " body=" + actualRawText.substring(0, 300));
 
