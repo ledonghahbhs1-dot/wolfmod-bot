@@ -48,7 +48,7 @@ if (!WOLF_API_KEY) throw new Error("WOLF_API_KEY is required");
 const log = (msg) => console.log("[" + new Date().toISOString() + "] " + msg);
 
 // ─── Whitelist channel IDs (bot chỉ hoạt động trong các kênh này) ─────────────
-const ALLOWED_CHANNEL_IDS = (process.env.ALLOWED_CHANNEL_IDS || "1503691818649518091").split(",").map(s => s.trim());
+const ALLOWED_CHANNEL_IDS = (process.env.ALLOWED_CHANNEL_IDS || "1503691818649518091, 1505863692825264218").split(",").map(s => s.trim());
 
 // ─── Anti-spam: cooldown per user (giây) ─────────────────────────────────────
 const COOLDOWN_SECONDS = 5;
@@ -176,7 +176,7 @@ client.on("interactionCreate", async (interaction) => {
 
   // ─── Referral System Restriction ─────────────────────────────────────────
   const referralCommands = ["referral", "joinref", "mystats", "leaderboard"];
-  if (referralCommands.includes(commandName) && interaction.guildId !== "1505863692825264218") {
+  if (referralCommands.includes(commandName) && interaction.guildId !== "1503688021877456906") {
     return interaction.reply({
       content: "🚫 **Lệnh này chỉ khả dụng trong máy chủ chỉ định của WolfMod.**",
       ephemeral: true
