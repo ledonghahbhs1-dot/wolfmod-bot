@@ -70,8 +70,11 @@ const db = loadData();
 function getUser(userId, name, username) {
   if (!db.points[userId]) {
     db.points[userId] = { points: 0, name: name || "Unknown", username: username || "" };
-    saveData(db);
+  } else {
+    if (name) db.points[userId].name = name;
+    if (username) db.points[userId].username = username;
   }
+  saveData(db);
   return db.points[userId];
 }
 
@@ -84,7 +87,7 @@ function addPoint(referrerId, referrerName, referrerUsername) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function isGroupChat(msg) {
-  return msg.chat.type === "group" || msg.chat.type === "supergroup";
+  return msg.chat.type === "group" || msg.chat.type === "supergroup" || msg.chat.type === "channel";
 }
 
 function groupOnly(handler) {
@@ -286,9 +289,10 @@ async function startBot() {
     // Calculate rank among all users with points
     const allUsers = Object.entries(db.points)
       .map(([id, u]) => ({ id, points: u.points }))
+      .filter(u => u.points > 0)
       .sort((a, b) => b.points - a.points);
     const rank = allUsers.findIndex(u => u.id === userId) + 1;
-    const rankText = rank > 0 ? "#" + rank + " / " + allUsers.length : "N/A";
+    const rankText = rank > 0 ? "#" + rank + " / " + allUsers.length : "Chưa có hạng";
 
     const referralLink = "https://t.me/" + botUsername + "?start=ref_" + userId + "_" + chatId;
     const displayName = username ? "@" + username : name;

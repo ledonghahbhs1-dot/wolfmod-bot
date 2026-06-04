@@ -72,7 +72,12 @@ function saveData(data) {
 const db = loadData();
 
 function getUser(userId, name) {
-  if (!db.points[userId]) { db.points[userId] = { points: 0, name: name || "Unknown" }; saveData(db); }
+  if (!db.points[userId]) {
+    db.points[userId] = { points: 0, name: name || "Unknown" };
+  } else if (name) {
+    db.points[userId].name = name;
+  }
+  saveData(db);
   return db.points[userId];
 }
 
@@ -168,6 +173,15 @@ client.on("interactionCreate", async (interaction) => {
     });
   }
   cooldowns.set(userId, now);
+
+  // ─── Referral System Restriction ─────────────────────────────────────────
+  const referralCommands = ["referral", "joinref", "mystats", "leaderboard"];
+  if (referralCommands.includes(commandName) && interaction.guildId !== "1505863692825264218") {
+    return interaction.reply({
+      content: "🚫 **Lệnh này chỉ khả dụng trong máy chủ chỉ định của WolfMod.**",
+      ephemeral: true
+    });
+  }
 
   // /help ─────────────────────────────────────────────────────────────────────
   if (commandName === "help") {
@@ -365,9 +379,10 @@ client.on("interactionCreate", async (interaction) => {
     const user = getUser(userId, userName);
     const allUsers = Object.entries(db.points)
       .map(([id, u]) => ({ id, points: u.points }))
+      .filter(u => u.points > 0)
       .sort((a, b) => b.points - a.points);
     const rank = allUsers.findIndex(u => u.id === userId) + 1;
-    const rankText = rank > 0 ? "#" + rank + " / " + allUsers.length : "N/A";
+    const rankText = rank > 0 ? "#" + rank + " / " + allUsers.length : "Chưa có hạng";
 
     const embed = new EmbedBuilder()
       .setColor(0xf5a623)
