@@ -213,7 +213,7 @@ async function startBot() {
       const chatId = msg.chat.id;
       const firstName = msg.from?.first_name ?? "there";
       bot.sendMessage(chatId,
-        "👋 Hello, <b>" + firstName + "</b>!\n\n🐉 Welcome to <b>WolfMod Bot</b>! 🎉\n\nCommands:\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n📊 /mystats\n🏆 /leaderboard\n❓ /help",
+        "👋 Hello, <b>" + firstName + "</b>!\n\n🐉 Welcome to <b>WolfMod Bot</b>! 🎉\n\nCommands:\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /buyvip\n /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n📊 /mystats\n🏆 /leaderboard\n❓ /help",
         { parse_mode: "HTML" }
       );
     }
@@ -222,7 +222,7 @@ async function startBot() {
   // ─── /help ─────────────────────────────────────────────────────────────────
   bot.onText(/\/help/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id,
-      "📖 <b>Command List</b>\n\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /paymentmethod\n🛡 /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n📊 /mystats\n🏆 /leaderboard\n🏠 /start\n\n⚡️ @wolfmodyt",
+      "📖 <b>Command List</b>\n\n📜 /scriptfreedragoncity\n💎 /scriptvipdragoncity\n🔑 /getfreekey\n🗝 /getkey USERNAME\n📖 /tutorial\n💳 /buyvip\n /gameguardian\n📱 /vphonegaga\n💻 /bluestack\n🔗 /referral\n📊 /mystats\n🏆 /leaderboard\n🏠 /start\n\n⚡️ @wolfmodyt",
       { parse_mode: "HTML" }
     );
   }));
@@ -397,6 +397,7 @@ async function startBot() {
     bot.sendMessage(msg.chat.id, "💎 <b>VIP Dragon City Script</b>\n\n🔗 Click the button below:", {
       parse_mode: "HTML",
       reply_markup: { inline_keyboard: [[{ text: "💎 Get VIP Script", url: "https://t.me/youtubewolfmod/299" }]] }
+      reply_markup: { inline_keyboard: [[{ text: "💎 Get VIP Script", url: "https://t.me/youtubewolfmod/381" }]] }
     });
   }));
 
@@ -525,12 +526,12 @@ async function startBot() {
     });
   }));
 
-  // ─── /paymentmethod ────────────────────────────────────────────────────────
-  bot.onText(/\/paymentmethod/, groupOnly((msg) => {
-    bot.sendMessage(msg.chat.id,
-      "👉 <b>PAYMENT METHODS</b>\n\n☑️ PayPal: contact.wolfmod@gmail.com\n☑️ Binance ID: 1158594960\n☑️ SociaBuzz: <a href=\"https://sociabuzz.com/ldh/tribe\">LINK</a>\n☑️ VCB: 9382382864 | LE DONG HA\n\n☑️ Send by FRIENDS AND FAMILY OPTION!\n\nDM ⚡️ @wolfmodyt ⚡️ to confirm.",
-      { parse_mode: "HTML" }
-    );
+  // ─── /buyvip ───────────────────────────────────────────────────────────────
+  bot.onText(/\/buyvip/, groupOnly((msg) => {
+    bot.sendMessage(msg.chat.id, "💳 <b>Buy VIP Key</b>\n\n🌐 Click the button below to purchase a VIP Key:", {
+      parse_mode: "HTML",
+      reply_markup: { inline_keyboard: [[{ text: "💳 Buy VIP Key", url: "https://www.wolfmod.xyz/buy-vip-key" }]] }
+    });
   }));
 
   // ─── /gameguardian ─────────────────────────────────────────────────────────

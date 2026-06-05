@@ -101,7 +101,7 @@ const commands = [
       opt.setName("username").setDescription("Username to generate key for").setRequired(false)
     ),
   new SlashCommandBuilder().setName("tutorial").setDescription("How to use guide"),
-  new SlashCommandBuilder().setName("paymentmethod").setDescription("View available payment methods"),
+  new SlashCommandBuilder().setName("buyvip").setDescription("Buy a VIP Key"),
   new SlashCommandBuilder().setName("gameguardian").setDescription("Download GameGuardian by WolfMod"),
   new SlashCommandBuilder().setName("vphonegaga").setDescription("Download VPhoneGaga Fix Rom"),
   new SlashCommandBuilder().setName("bluestack").setDescription("Download BlueStack"),
@@ -195,7 +195,7 @@ client.on("interactionCreate", async (interaction) => {
         { name: "🔑 /getfreekey", value: "Get a free activation key", inline: false },
         { name: "🗝 /getkey [username]", value: "Generate a key for a username", inline: false },
         { name: "📖 /tutorial", value: "How to use guide", inline: false },
-        { name: "💳 /paymentmethod", value: "View payment methods", inline: false },
+    { name: "💳 /buyvip", value: "Buy a VIP Key", inline: false },
         { name: "🛡 /gameguardian", value: "Download GameGuardian", inline: false },
         { name: "📱 /vphonegaga", value: "Download VPhoneGaga", inline: false },
         { name: "💻 /bluestack", value: "Download BlueStack", inline: false },
@@ -323,19 +323,16 @@ client.on("interactionCreate", async (interaction) => {
     return interaction.reply({ embeds: [embed], components: [row] });
   }
 
-  // /paymentmethod ────────────────────────────────────────────────────────────
-  if (commandName === "paymentmethod") {
+  // /buyvip ───────────────────────────────────────────────────────────────────
+  if (commandName === "buyvip") {
     const embed = new EmbedBuilder()
       .setColor(0x55efc4)
-      .setTitle("💳 Payment Methods")
-      .addFields(
-        { name: "💵 PayPal", value: "contact.wolfmod@gmail.com", inline: false },
-        { name: "🔶 Binance ID", value: "1158594960", inline: false },
-        { name: "🛒 SociaBuzz", value: "[LINK](https://sociabuzz.com/ldh/tribe)", inline: false },
-        { name: "🏦 VCB", value: "9382382864 | LE DONG HA", inline: false },
-      )
-      .setDescription("☑️ Send via **FRIENDS AND FAMILY OPTION**!\n\nDM ⚡ @wolfmodyt to confirm.");
-    return interaction.reply({ embeds: [embed] });
+      .setTitle("💳 Buy VIP Key")
+      .setDescription("Click the button below to purchase a VIP Key:");
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setLabel("💳 Buy VIP Key").setStyle(ButtonStyle.Link).setURL("https://www.wolfmod.xyz/buy-vip-key")
+    );
+    return interaction.reply({ embeds: [embed], components: [row] });
   }
 
   // /gameguardian ─────────────────────────────────────────────────────────────
