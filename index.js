@@ -396,7 +396,6 @@ async function startBot() {
   bot.onText(/\/scriptvipdragoncity/, groupOnly((msg) => {
     bot.sendMessage(msg.chat.id, "💎 <b>VIP Dragon City Script</b>\n\n🔗 Click the button below:", {
       parse_mode: "HTML",
-      reply_markup: { inline_keyboard: [[{ text: "💎 Get VIP Script", url: "https://t.me/youtubewolfmod/299" }]] }
       reply_markup: { inline_keyboard: [[{ text: "💎 Get VIP Script", url: "https://t.me/youtubewolfmod/381" }]] }
     });
   }));
