@@ -94,7 +94,7 @@ function groupOnly(handler) {
   return (msg, match) => {
     if (!isGroupChat(msg)) {
       bot.sendMessage(msg.chat.id,
-        "🚫 <b>This bot only works in group chats.</b>\n\nPlease add me to a group or supergroup to use my commands.",
+        "🚫 <b>Bot này chỉ hoạt động trong nhóm.</b>\n\nVui lòng thêm tôi vào nhóm để sử dụng các lệnh.",
         { parse_mode: "HTML" }
       );
       log("Rejected private from " + (msg.from?.username || msg.chat.id));
@@ -103,6 +103,9 @@ function groupOnly(handler) {
     handler(msg, match);
   };
 }
+
+// Danh sách từ khóa cấm (mại dâm, nhạy cảm...)
+const BANNED_KEYWORDS = ["mại dâm", "gái gọi", "đi khách", "pga", "pgb", "sex", "clip nóng", "cave", "phò", "đứng đường"];
 
 let bot;
 let botUsername = "";
@@ -559,9 +562,35 @@ async function startBot() {
 
   // ─── New member joined group → award referral point ───────────────────────
   bot.on("message", (msg) => {
+    const chatId = msg.chat.id;
+    const userId = String(msg.from?.id);
+
+    // 1. Chống share bot khác (Inline Bot)
+    if (msg.via_bot && isGroupChat(msg)) {
+      log(`[Security] Deleted message via inline bot: @${msg.via_bot.username} from user ${userId}`);
+      bot.deleteMessage(chatId, msg.message_id).catch(() => {});
+      bot.sendMessage(chatId, `🚫 <b>@${msg.from?.username || userId}</b>, vui lòng không chia sẻ bot khác vào nhóm!`, { parse_mode: "HTML" })
+         .then(m => setTimeout(() => bot.deleteMessage(chatId, m.message_id).catch(() => {}), 10000));
+      return;
+    }
+
+    // 2. Chống từ khóa mại dâm / nhạy cảm
+    if (msg.text && isGroupChat(msg)) {
+      const textLower = msg.text.toLowerCase();
+      const hasBannedWord = BANNED_KEYWORDS.some(word => textLower.includes(word));
+
+      if (hasBannedWord) {
+        log(`[Security] Banned word detected from ${userId}: ${msg.text}`);
+        bot.deleteMessage(chatId, msg.message_id).catch(() => {});
+        bot.sendMessage(chatId, `🚫 <b>@${msg.from?.username || userId}</b>, tin nhắn của bạn chứa từ ngữ bị cấm và đã bị xóa.`, { parse_mode: "HTML" })
+           .then(m => setTimeout(() => bot.deleteMessage(chatId, m.message_id).catch(() => {}), 10000));
+        return;
+      }
+    }
+
     // Handle new members joining
     if (msg.new_chat_members && msg.new_chat_members.length > 0) {
-      const chatId = String(msg.chat.id);
+      const sChatId = String(msg.chat.id);
       for (const newMember of msg.new_chat_members) {
         if (newMember.is_bot) continue;
         const newUserId = String(newMember.id);
@@ -569,7 +598,7 @@ async function startBot() {
 
         // Check if this user has a pending referral for this group
         const pending = db.pending[newUserId];
-        if (pending && String(pending.chatId) === chatId && !db.joined[joinKey]) {
+        if (pending && String(pending.chatId) === sChatId && !db.joined[joinKey]) {
           const referrerId = pending.referrerId;
           const referrerData = db.points[referrerId] || {};
           const newPoints = addPoint(referrerId, referrerData.name, referrerData.username);
