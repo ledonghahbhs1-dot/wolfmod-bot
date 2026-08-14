@@ -38,16 +38,53 @@ const path = require("path");
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const WOLF_API_KEY = process.env.WOLF_API_KEY || "";
+const LINK4M_TOKEN = process.env.LINK4M_TOKEN || "668ba4df9db6371e5c26ddb2";
+const WORKINK_API_KEY = process.env.WORKINK_API_KEY || "";
+const WEB_BASE_URL = process.env.WEB_BASE_URL || "https://www.wolfmodkk.xyz";
+
 if (!token) throw new Error("TELEGRAM_BOT_TOKEN is required");
 
 const log = (msg) => console.log("[" + new Date().toISOString() + "] " + msg);
 
-// ─── License Key Generator ───────────────────────────────────────────────────
+// ─── License Key & Link Shortener Helpers ─────────────────────────────────────
 const crypto = require("crypto");
 function generateLicenseKey(username) {
   const safeUsername = (username || "USER").replace(/[|\s]/g, "");
   const randomPart = crypto.randomBytes(8).toString("hex").toUpperCase();
   return safeUsername ? `${safeUsername}|${randomPart}` : randomPart;
+}
+
+async function generateLink4mUrl(targetUrl) {
+  if (!LINK4M_TOKEN) return null;
+  try {
+    const apiUrl = `https://link4m.co/api-shorten/v2?api=${LINK4M_TOKEN}&url=${encodeURIComponent(targetUrl)}`;
+    const res = await fetch(apiUrl);
+    if (res.ok) {
+      const data = await res.json();
+      return data.shortenedUrl || data.shortened_url || data.short_url || data.url || null;
+    }
+  } catch (e) {
+    log("[Link4m] Error: " + e.message);
+  }
+  return null;
+}
+
+async function generateWorkinkUrl(targetUrl) {
+  if (!WORKINK_API_KEY) return null;
+  try {
+    const res = await fetch("https://dashboard.work.ink/_api/v1/link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": WORKINK_API_KEY },
+      body: JSON.stringify({ destination: targetUrl, title: "WolfMod Key Activation" })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.link || data.url || null;
+    }
+  } catch (e) {
+    log("[Workink] Error: " + e.message);
+  }
+  return null;
 }
 
 // ─── Data persistence ────────────────────────────────────────────────────────
@@ -418,19 +455,80 @@ async function startBot() {
     const senderUsername = msg.from?.username || msg.from?.first_name || null;
     const username = argUsername || senderUsername || "User";
 
-    const licenseKey = generateLicenseKey(username);
+    const loadingMsg = await bot.sendMessage(chatId,
+      "⏳ Generating verification link for <b>" + username + "</b>...",
+      { parse_mode: "HTML" }
+    );
 
-    const reply = "✅ <b>Key Generated Successfully!</b>\n\n" +
-      "👤 Username: <b>" + username + "</b>\n" +
-      "🔑 Key: <code>" + licenseKey + "</code>\n\n" +
-      "<i>🗑️ This message will auto-delete in 60 seconds.</i>";
+    try {
+      let link4mUrl = null;
+      let workinkUrl = null;
 
-    const sentMsg = await bot.sendMessage(chatId, reply, { parse_mode: "HTML" });
-    log("/getkey success for " + username + ": " + licenseKey);
+      // Trường hợp 1: Có WOLF_API_KEY -> Gọi API /genkey của Web
+      if (WOLF_API_KEY) {
+        try {
+          const { ok: resOk, text: rawText } = await httpsPost(
+            `${WEB_BASE_URL}/api/genkey`,
+            JSON.stringify({ username }),
+            { "Content-Type": "application/json", "x-wolf-api-key": WOLF_API_KEY }
+          );
+          if (resOk) {
+            const data = JSON.parse(rawText);
+            if (data.success && data.encodedLinks) {
+              const decoded = JSON.parse(Buffer.from(data.encodedLinks, "base64").toString("utf8"));
+              link4mUrl = decoded.link4m || null;
+              workinkUrl = decoded.workink || null;
+            }
+          }
+        } catch (e) {
+          log("[getkey] API genkey call failed, switching to local shortener: " + e.message);
+        }
+      }
 
-    setTimeout(async () => {
-      try { await bot.deleteMessage(chatId, sentMsg.message_id); } catch {}
-    }, 60000);
+      // Trường hợp 2: Nếu chưa có link từ API -> Tạo link kích hoạt local và rút gọn qua Link4m / Workink
+      if (!link4mUrl && !workinkUrl) {
+        const activationToken = crypto.randomBytes(5).toString("hex").toUpperCase().substring(0, 9);
+        const activationUrl = `${WEB_BASE_URL}/activate/${activationToken}?user=${encodeURIComponent(username)}`;
+
+        [link4mUrl, workinkUrl] = await Promise.all([
+          generateLink4mUrl(activationUrl),
+          generateWorkinkUrl(activationUrl)
+        ]);
+
+        // Nếu cả 2 dịch vụ rút gọn đều chưa cấu hình token, trả về link kích hoạt trực tiếp
+        if (!link4mUrl && !workinkUrl) {
+          link4mUrl = activationUrl;
+        }
+      }
+
+      const buttons = [];
+      if (link4mUrl)  buttons.push([{ text: "🔗 Kích hoạt qua Link4m",  url: link4mUrl }]);
+      if (workinkUrl) buttons.push([{ text: "🔗 Kích hoạt qua Workink", url: workinkUrl }]);
+
+      const reply = "✅ <b>Tạo Link Nhận Key Thành Công!</b>\n\n" +
+        "👤 Username: <b>" + username + "</b>\n" +
+        "⏳ Thời hạn: <b>2 giờ</b>\n\n" +
+        "👉 <i>Vui lòng chọn 1 trong các link bên dưới, hoàn tất vượt link để nhận Key:</i>";
+
+      await bot.editMessageText(reply, {
+        chat_id: chatId,
+        message_id: loadingMsg.message_id,
+        parse_mode: "HTML",
+        reply_markup: { inline_keyboard: buttons }
+      });
+      log("/getkey shortlink success for " + username);
+
+      setTimeout(async () => {
+        try { await bot.deleteMessage(chatId, loadingMsg.message_id); } catch {}
+      }, 60000);
+    } catch (err) {
+      log("/getkey error: " + err.message);
+      await bot.editMessageText("❌ <b>Có lỗi xảy ra khi tạo link key.</b>", {
+        chat_id: chatId,
+        message_id: loadingMsg.message_id,
+        parse_mode: "HTML"
+      });
+    }
   }));
 
   // ─── /tutorial ─────────────────────────────────────────────────────────────
