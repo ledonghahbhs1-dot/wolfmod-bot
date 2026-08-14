@@ -703,7 +703,7 @@ async function startBot() {
   log("   Platform: " + (process.env.RAILWAY_SERVICE_NAME ? "Railway (" + process.env.RAILWAY_SERVICE_NAME + ")" : "Local/Other"));
 }
 
-function addCreditsAndNotify(userId, creditsToAdd, amount) {
+function addCreditsAndNotify(userId, creditsToAdd, amount, langCode) {
   try {
     const user = getUser(userId, "User " + userId, "");
     user.points = (user.points || 0) + creditsToAdd;
@@ -711,14 +711,23 @@ function addCreditsAndNotify(userId, creditsToAdd, amount) {
     log(`[SePay] Added +${creditsToAdd} credits to user ${userId}. Total: ${user.points}`);
 
     if (bot) {
-      bot.sendMessage(
-        userId,
-        `🎉 <b>NẠP TIỀN THÀNH CÔNG TỪ SEPAY!</b>\n\n` +
-        `💰 Số tiền nạp: <b>${Number(amount).toLocaleString()} VNĐ</b>\n` +
-        `🎁 Đã cộng: <b>+${creditsToAdd} Points/Credit</b>\n` +
-        `📊 Tổng hiện có: <b>${user.points} Points/Credit</b>`,
-        { parse_mode: "HTML" }
-      ).catch((e) => log("[SePay] Could not send message to user " + userId + ": " + e.message));
+      // Tự động nhận diện ngôn ngữ (Việt Nam nếu langCode là 'vi' hoặc chữ vi, mặc định tiếng Anh cho người nước ngoài)
+      const isVi = langCode ? langCode.startsWith("vi") : true;
+
+      const messageText = isVi
+        ? `<b><tg-emoji emoji-id="5215628200578655810">🎉</tg-emoji> NẠP TIỀN THÀNH CÔNG TỪ SEPAY!</b>\n\n` +
+          `<b><tg-emoji emoji-id="5213094908608392768">💰</tg-emoji> Số tiền nạp:</b> <code>${Number(amount).toLocaleString()} VNĐ</code>\n` +
+          `<b><tg-emoji emoji-id="5215668908278686541">🎁</tg-emoji> Đã cộng:</b> <code>+${creditsToAdd}</code> Credit/Điểm\n` +
+          `<b><tg-emoji emoji-id="5312361253610475399">👑</tg-emoji> Tổng hiện có:</b> <code>${user.points}</code> Credit/Điểm\n\n` +
+          `<i><tg-emoji emoji-id="5195033767969839232">🚀</tg-emoji> Cảm ơn bạn đã sử dụng dịch vụ của WolfMod!</i>`
+        : `<b><tg-emoji emoji-id="5215628200578655810">🎉</tg-emoji> SEPAY TOP-UP SUCCESSFUL!</b>\n\n` +
+          `<b><tg-emoji emoji-id="5213094908608392768">💰</tg-emoji> Amount:</b> <code>${Number(amount).toLocaleString()} VND</code>\n` +
+          `<b><tg-emoji emoji-id="5215668908278686541">🎁</tg-emoji> Added:</b> <code>+${creditsToAdd}</code> Credits/Points\n` +
+          `<b><tg-emoji emoji-id="5312361253610475399">👑</tg-emoji> Total Balance:</b> <code>${user.points}</code> Credits/Points\n\n` +
+          `<i><tg-emoji emoji-id="5195033767969839232">🚀</tg-emoji> Thank you for using WolfMod services!</i>`;
+
+      bot.sendMessage(userId, messageText, { parse_mode: "HTML" })
+         .catch((e) => log("[SePay] Could not send message to user " + userId + ": " + e.message));
     }
   } catch (e) {
     log("[SePay] Error in addCreditsAndNotify: " + e.message);
