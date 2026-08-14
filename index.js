@@ -703,4 +703,28 @@ async function startBot() {
   log("   Platform: " + (process.env.RAILWAY_SERVICE_NAME ? "Railway (" + process.env.RAILWAY_SERVICE_NAME + ")" : "Local/Other"));
 }
 
+function addCreditsAndNotify(userId, creditsToAdd, amount) {
+  try {
+    const user = getUser(userId, "User " + userId, "");
+    user.points = (user.points || 0) + creditsToAdd;
+    saveData(db);
+    log(`[SePay] Added +${creditsToAdd} credits to user ${userId}. Total: ${user.points}`);
+
+    if (bot) {
+      bot.sendMessage(
+        userId,
+        `🎉 <b>NẠP TIỀN THÀNH CÔNG TỪ SEPAY!</b>\n\n` +
+        `💰 Số tiền nạp: <b>${Number(amount).toLocaleString()} VNĐ</b>\n` +
+        `🎁 Đã cộng: <b>+${creditsToAdd} Points/Credit</b>\n` +
+        `📊 Tổng hiện có: <b>${user.points} Points/Credit</b>`,
+        { parse_mode: "HTML" }
+      ).catch((e) => log("[SePay] Could not send message to user " + userId + ": " + e.message));
+    }
+  } catch (e) {
+    log("[SePay] Error in addCreditsAndNotify: " + e.message);
+  }
+}
+
+module.exports = { addCreditsAndNotify };
+
 startBot();

@@ -42,13 +42,21 @@ http.createServer((req, res) => {
 
         console.log(`[SePay Webhook] Received: ${content} | Amount: ${amount} VNĐ`);
 
-        const match = content.match(/(?:FBNAP|NAP)(\d+)/i);
+        const match = content.match(/TELE(\d{3,10})/i);
         if (match) {
           const userId = match[1];
           const creditsToAdd = Math.floor((amount / 30000) * 100);
 
-          console.log(`[SePay] Valid top-up for User ID ${userId}: +${creditsToAdd} credits`);
-          // Trigger notification or balance update logic here if needed
+          console.log(`[SePay] Valid top-up for User ID ${userId}: +${creditsToAdd} credits (Code: TELE${userId})`);
+          
+          try {
+            const indexModule = require("./index.js");
+            if (indexModule && typeof indexModule.addCreditsAndNotify === "function") {
+              indexModule.addCreditsAndNotify(userId, creditsToAdd, amount);
+            }
+          } catch (e) {
+            console.error("[SePay] Error notifying user:", e.message);
+          }
         }
 
         res.writeHead(200, { "Content-Type": "application/json" });
