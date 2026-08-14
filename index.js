@@ -99,14 +99,7 @@ function isGroupChat(msg) {
 
 function groupOnly(handler) {
   return (msg, match) => {
-    if (!isGroupChat(msg)) {
-      bot.sendMessage(msg.chat.id,
-        "🚫 <b>Bot này chỉ hoạt động trong nhóm.</b>\n\nVui lòng thêm tôi vào nhóm để sử dụng các lệnh.",
-        { parse_mode: "HTML" }
-      );
-      log("Rejected private from " + (msg.from?.username || msg.chat.id));
-      return;
-    }
+    // Cho phép phản hồi cả tin nhắn riêng (Private) lẫn nhóm (Group)
     handler(msg, match);
   };
 }

@@ -157,17 +157,15 @@ client.on("interactionCreate", async (interaction) => {
   const userId = user.id;
   const userName = user.username;
 
-  if (!guild) {
-    return interaction.reply({ content: "🚫 **This bot only works inside servers.**", ephemeral: true });
-  }
-
-  // ─── Whitelist channel check ──────────────────────────────────────────────
+  // ─── Whitelist channel check (đã cho phép hoạt động ở mọi kênh và DM) ───────
+  /*
   if (!ALLOWED_CHANNEL_IDS.includes(interaction.channelId)) {
     return interaction.reply({
       content: "🚫 **Bot không hoạt động trong kênh này.**\nVui lòng dùng bot trong kênh được chỉ định.",
       ephemeral: true
     });
   }
+  */
 
   // ─── Anti-spam cooldown check ─────────────────────────────────────────────
   const now = Date.now();
