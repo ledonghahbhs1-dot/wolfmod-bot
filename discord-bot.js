@@ -41,11 +41,18 @@ const fs = require("fs");
 const path = require("path");
 
 const token = process.env.DISCORD_TOKEN;
-const WOLF_API_KEY = process.env.WOLF_API_KEY;
+const WOLF_API_KEY = process.env.WOLF_API_KEY || "";
 if (!token) throw new Error("DISCORD_TOKEN is required");
-if (!WOLF_API_KEY) throw new Error("WOLF_API_KEY is required");
 
 const log = (msg) => console.log("[" + new Date().toISOString() + "] " + msg);
+
+// ─── License Key Generator ───────────────────────────────────────────────────
+const crypto = require("crypto");
+function generateLicenseKey(username) {
+  const safeUsername = (username || "USER").replace(/[|\s]/g, "");
+  const randomPart = crypto.randomBytes(8).toString("hex").toUpperCase();
+  return safeUsername ? `${safeUsername}|${randomPart}` : randomPart;
+}
 
 // ─── Whitelist channel IDs (bot chỉ hoạt động trong các kênh này) ─────────────
 const ALLOWED_CHANNEL_IDS = (process.env.ALLOWED_CHANNEL_IDS || "1503691818649518091, 1505863692825264218").split(",").map(s => s.trim());
@@ -247,67 +254,25 @@ client.on("interactionCreate", async (interaction) => {
 
   // /getkey ───────────────────────────────────────────────────────────────────
   if (commandName === "getkey") {
-    const username = interaction.options.getString("username") || userName;
+    const inputUser = interaction.options.getString("username");
+    const username = inputUser || interaction.member?.displayName || interaction.user.globalName || interaction.user.username || "User";
+    const licenseKey = generateLicenseKey(username);
 
-    await interaction.deferReply();
+    const embed = new EmbedBuilder()
+      .setColor(0x00b894)
+      .setTitle("✅ Key Generated Successfully!")
+      .addFields(
+        { name: "👤 Username", value: username, inline: true },
+        { name: "🔑 License Key", value: "`" + licenseKey + "`", inline: false }
+      )
+      .setFooter({ text: "🗑️ This message will be deleted in 60 seconds." });
 
-    try {
-      const { status: resStatus, ok: resOk, text: rawText } = await httpsPost(
-        "https://wolfmod.xyz/api/genkey",
-        JSON.stringify({ username }),
-        { "Content-Type": "application/json", "x-wolf-api-key": WOLF_API_KEY }
-      );
-      log("genkey status=" + resStatus + " body=" + rawText.substring(0, 300));
+    await interaction.reply({ embeds: [embed] });
+    log("/getkey success for " + username + ": " + licenseKey);
 
-      const isHtml = rawText.trimStart().toLowerCase().startsWith("<!doctype") ||
-                     rawText.trimStart().toLowerCase().startsWith("<html");
-
-      if (!resOk || isHtml) {
-        return interaction.editReply("❌ **Failed to generate key.**\n" + (isHtml ? "Server returned an unexpected response." : "Error " + resStatus));
-      }
-
-      let data;
-      try { data = JSON.parse(rawText); } catch {
-        return interaction.editReply("❌ **Unexpected response from server.**");
-      }
-
-      if (!data.success) {
-        return interaction.editReply("❌ **Failed to generate key.**\n" + (data.message || "Unknown error."));
-      }
-
-      const link4m  = data.shortUrls?.link4m || data.short_url || data.shortUrl || data.url || null;
-      const workink = data.shortUrls?.workink || null;
-      const msgText = data.message || "Complete the link to activate your key.";
-
-      const embed = new EmbedBuilder()
-        .setColor(0x00b894)
-        .setTitle("✅ Key Generated!")
-        .addFields(
-          { name: "👤 Username", value: "@" + username, inline: true },
-          { name: "⏳ Expires In", value: "2 hours", inline: true },
-          { name: "⚠️ Note", value: msgText, inline: false }
-        )
-        .setDescription("👇 **Choose a link to activate:**")
-        .setFooter({ text: "🗑️ This message will be deleted in 30 seconds." });
-
-      const row = new ActionRowBuilder();
-      if (link4m)  row.addComponents(new ButtonBuilder().setLabel("🔗 Activate via Link4m").setStyle(ButtonStyle.Link).setURL(link4m));
-      if (workink) row.addComponents(new ButtonBuilder().setLabel("🔗 Activate via Workink").setStyle(ButtonStyle.Link).setURL(workink));
-
-      await interaction.editReply({ embeds: [embed], components: row.components.length > 0 ? [row] : [] });
-      log("/getkey success for @" + username);
-
-      setTimeout(async () => {
-        try { await interaction.deleteReply(); } catch {}
-      }, 30000);
-    } catch (err) {
-      const cause = err.cause ? (" | cause: " + err.cause) : "";
-      log("/getkey error: " + err.message + cause);
-      const userMsg = err.name === "AbortError"
-        ? "⏱ Request timed out. The key server may be slow or down."
-        : "Could not reach the key server.\n`" + err.message + "`";
-      await interaction.editReply("❌ **Network error.**\n" + userMsg);
-    }
+    setTimeout(async () => {
+      try { await interaction.deleteReply(); } catch {}
+    }, 60000);
     return;
   }
 

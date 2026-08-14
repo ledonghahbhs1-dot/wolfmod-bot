@@ -37,11 +37,18 @@ const fs = require("fs");
 const path = require("path");
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const WOLF_API_KEY = process.env.WOLF_API_KEY;
+const WOLF_API_KEY = process.env.WOLF_API_KEY || "";
 if (!token) throw new Error("TELEGRAM_BOT_TOKEN is required");
-if (!WOLF_API_KEY) throw new Error("WOLF_API_KEY is required");
 
 const log = (msg) => console.log("[" + new Date().toISOString() + "] " + msg);
+
+// ─── License Key Generator ───────────────────────────────────────────────────
+const crypto = require("crypto");
+function generateLicenseKey(username) {
+  const safeUsername = (username || "USER").replace(/[|\s]/g, "");
+  const randomPart = crypto.randomBytes(8).toString("hex").toUpperCase();
+  return safeUsername ? `${safeUsername}|${randomPart}` : randomPart;
+}
 
 // ─── Data persistence ────────────────────────────────────────────────────────
 const DATA_FILE = path.join(__dirname, "data.json");
@@ -415,109 +422,22 @@ async function startBot() {
   bot.onText(/\/getkey(?:\s+(.+))?/, groupOnly(async (msg, match) => {
     const chatId = msg.chat.id;
     const argUsername = match?.[1]?.trim().replace(/^@/, "") || null;
-    const senderUsername = msg.from?.username || null;
-    const username = argUsername || senderUsername;
+    const senderUsername = msg.from?.username || msg.from?.first_name || null;
+    const username = argUsername || senderUsername || "User";
 
-    if (!username) {
-      bot.sendMessage(chatId,
-        "❌ <b>Missing username!</b>\n\nUsage: <code>/getkey USERNAME</code>\nExample: <code>/getkey wolfmodyt</code>\n\n💡 Or set a Telegram username and use <code>/getkey</code> directly.",
-        { parse_mode: "HTML" }
-      );
-      return;
-    }
+    const licenseKey = generateLicenseKey(username);
 
-    const loadingMsg = await bot.sendMessage(chatId,
-      "⏳ Generating key for <b>@" + username + "</b>...",
-      { parse_mode: "HTML" }
-    );
+    const reply = "✅ <b>Key Generated Successfully!</b>\n\n" +
+      "👤 Username: <b>" + username + "</b>\n" +
+      "🔑 Key: <code>" + licenseKey + "</code>\n\n" +
+      "<i>🗑️ This message will auto-delete in 60 seconds.</i>";
 
-    try {
-      const { status: resStatus, ok: resOk, text: actualRawText } = await httpsPost(
-        "https://wolfmod.xyz/api/genkey",
-        JSON.stringify({ username }),
-        { "Content-Type": "application/json", "x-wolf-api-key": WOLF_API_KEY }
-      );
-      log("genkey status=" + resStatus + " body=" + actualRawText.substring(0, 300));
+    const sentMsg = await bot.sendMessage(chatId, reply, { parse_mode: "HTML" });
+    log("/getkey success for " + username + ": " + licenseKey);
 
-      const isHtml = actualRawText.trimStart().toLowerCase().startsWith("<!doctype") ||
-                     actualRawText.trimStart().toLowerCase().startsWith("<html");
-
-      if (!resOk) {
-        const errDisplay = isHtml
-          ? "Server returned an HTML error page (status " + resStatus + "). The API may be down."
-          : actualRawText.substring(0, 150);
-        await bot.editMessageText(
-          "❌ <b>Failed to generate key.</b>\nError " + resStatus + ": " + errDisplay,
-          { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
-        );
-        return;
-      }
-
-      if (isHtml) {
-        await bot.editMessageText(
-          "❌ <b>Unexpected response from server.</b>\nThe API returned an HTML page instead of data. Please try again later.",
-          { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
-        );
-        return;
-      }
-
-      let data;
-      try {
-        data = JSON.parse(actualRawText);
-      } catch {
-        const safe = actualRawText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        await bot.editMessageText(
-          "❌ <b>Unexpected response from server:</b>\n<code>" + safe.substring(0, 200) + "</code>",
-          { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
-        );
-        return;
-      }
-
-      if (!data.success) {
-        await bot.editMessageText(
-          "❌ <b>Failed to generate key.</b>\n" + (data.message || "Unknown error."),
-          { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
-        );
-        return;
-      }
-
-      const link4m  = data.shortUrls?.link4m  || data.short_url || data.shortUrl || data.url || null;
-      const workink = data.shortUrls?.workink || null;
-      const message = data.message || "Complete the link to activate your key.";
-
-      const buttons = [];
-      if (link4m)  buttons.push([{ text: "🔗 Activate via Link4m",  url: link4m }]);
-      if (workink) buttons.push([{ text: "🔗 Activate via Workink", url: workink }]);
-
-      const reply = "✅ <b>Key Generated!</b>\n\n" +
-        "👤 Username: <b>@" + username + "</b>\n" +
-        "⏳ Expires in: <b>2 hours</b>\n\n" +
-        "⚠️ " + message + "\n\n" +
-        "👇 <b>Choose a link to activate:</b>\n\n" +
-        "<i>🗑️ This message will be deleted in 30 seconds.</i>";
-
-      await bot.editMessageText(reply, {
-        chat_id: chatId,
-        message_id: loadingMsg.message_id,
-        parse_mode: "HTML",
-        reply_markup: buttons.length > 0 ? { inline_keyboard: buttons } : undefined
-      });
-      log("/getkey success for @" + username);
-
-      setTimeout(async () => {
-        try { await bot.deleteMessage(chatId, loadingMsg.message_id); } catch {}
-      }, 30000);
-    } catch (err) {
-      const cause = err.cause ? (" | cause: " + err.cause) : "";
-      log("/getkey error: " + err.message + cause);
-      const userMsg = err.name === "AbortError"
-        ? "⏱ Request timed out. The key server may be slow or down."
-        : "Could not reach key server.\n<code>" + err.message + "</code>";
-      await bot.editMessageText(
-        "❌ <b>Network error.</b>\n" + userMsg,
-        { chat_id: chatId, message_id: loadingMsg.message_id, parse_mode: "HTML" }
-      );
-    }
+    setTimeout(async () => {
+      try { await bot.deleteMessage(chatId, sentMsg.message_id); } catch {}
+    }, 60000);
   }));
 
   // ─── /tutorial ─────────────────────────────────────────────────────────────
