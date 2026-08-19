@@ -24,9 +24,10 @@ function verifySepaySignature(rawBody, signatureHeader) {
 // 1. Tạo Web Server (Health Check & SePay Webhook)
 http.createServer((req, res) => {
   if (req.method === "POST" && req.url === "/sepay-webhook") {
-    let body = "";
-    req.on("data", chunk => { body += chunk; });
+    const chunks = [];
+    req.on("data", chunk => { chunks.push(chunk); });
     req.on("end", () => {
+      const body = Buffer.concat(chunks).toString("utf8");
       const sepaySignature = req.headers["x-sepay-signature"] || req.headers["x-signature"] || "";
 
       if (SEPAY_SECRET_KEY && !verifySepaySignature(body, sepaySignature)) {
@@ -42,7 +43,7 @@ http.createServer((req, res) => {
 
         console.log(`[SePay Webhook] Received: ${content} | Amount: ${amount} VNĐ`);
 
-        const match = content.match(/TELE(\d{3,10})/i);
+        const match = content.match(/TELE\s*(\d{3,15})/i);
         if (match) {
           const userId = match[1];
           const creditsToAdd = Math.floor((amount / 30000) * 100);
@@ -58,6 +59,35 @@ http.createServer((req, res) => {
             console.error("[SePay] Error notifying user:", e.message);
           }
         }
+
+        // --- FORWARD WEBHOOK TO FB_REPORT_WM ---
+        const fbReportUrl = process.env.FB_REPORT_WEBHOOK_URL || "https://fbreportwm-production.up.railway.app/sepay-webhook";
+        console.log(`[SePay] Forwarding webhook to FB_REPORT_WM at ${fbReportUrl}...`);
+        fetch(fbReportUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-sepay-signature": sepaySignature || "",
+            "x-signature": req.headers["x-signature"] || ""
+          },
+          body: body
+        })
+        .then(async (resp) => {
+          console.log(`[Forward FB_REPORT_WM] Status: ${resp.status}`);
+        })
+        .catch(err => {
+          console.error(`[Forward FB_REPORT_WM] Error: ${err.message}`);
+          // Fallback if port is needed (Railway usually maps port to 80/443 for internal if exposed, or specific port)
+          if (err.message.includes("ECONNREFUSED") && !fbReportUrl.match(/:\d+/)) {
+             console.log("[Forward FB_REPORT_WM] Trying fallback port 5000...");
+             fetch("http://fbreportwm.railway.internal:5000/sepay-webhook", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-sepay-signature": sepaySignature || "" },
+                body: body
+             }).catch(e => console.error("[Forward FB_REPORT_WM] Fallback error:", e.message));
+          }
+        });
+        // ------------------------------------------------
 
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: true }));
