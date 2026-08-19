@@ -4,17 +4,20 @@ const crypto = require("crypto");
 const PORT = process.env.PORT || 8080;
 const SEPAY_SECRET_KEY = process.env.SEPAY_SECRET_KEY || "";
 
-function verifySepaySignature(rawBody, signatureHeader) {
+function verifySepaySignature(req, rawBody) {
+  const signatureHeader = req.headers["x-sepay-signature"] || req.headers["x-signature"] || "";
+  const timestampHeader = req.headers["x-sepay-timestamp"] || "";
   if (!SEPAY_SECRET_KEY || !signatureHeader) return true;
   try {
-    const expectedSignature = crypto
+    const payloadToSign = timestampHeader + "." + rawBody;
+    const expectedSignature = "sha256=" + crypto
       .createHmac("sha256", SEPAY_SECRET_KEY)
-      .update(rawBody)
+      .update(payloadToSign)
       .digest("hex");
 
     return crypto.timingSafeEqual(
       Buffer.from(signatureHeader.trim().toLowerCase()),
-      Buffer.from(expectedSignature.trim().toLowerCase())
+      Buffer.from(expectedSignature.toLowerCase())
     );
   } catch (e) {
     return false;
@@ -28,9 +31,8 @@ http.createServer((req, res) => {
     req.on("data", chunk => { chunks.push(chunk); });
     req.on("end", () => {
       const body = Buffer.concat(chunks).toString("utf8");
-      const sepaySignature = req.headers["x-sepay-signature"] || req.headers["x-signature"] || "";
 
-      if (SEPAY_SECRET_KEY && !verifySepaySignature(body, sepaySignature)) {
+      if (SEPAY_SECRET_KEY && !verifySepaySignature(req, body)) {
         console.error("[SePay] ❌ Invalid HMAC signature!");
         res.writeHead(401, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ success: false, error: "Unauthorized" }));
@@ -67,8 +69,8 @@ http.createServer((req, res) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-sepay-signature": sepaySignature || "",
-            "x-signature": req.headers["x-signature"] || ""
+            "x-sepay-signature": req.headers["x-sepay-signature"] || req.headers["x-signature"] || "",
+            "x-sepay-timestamp": req.headers["x-sepay-timestamp"] || ""
           },
           body: body
         })
@@ -82,7 +84,11 @@ http.createServer((req, res) => {
              console.log("[Forward FB_REPORT_WM] Trying fallback port 5000...");
              fetch("http://fbreportwm.railway.internal:5000/sepay-webhook", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "x-sepay-signature": sepaySignature || "" },
+                headers: { 
+                  "Content-Type": "application/json", 
+                  "x-sepay-signature": req.headers["x-sepay-signature"] || req.headers["x-signature"] || "",
+                  "x-sepay-timestamp": req.headers["x-sepay-timestamp"] || ""
+                },
                 body: body
              }).catch(e => console.error("[Forward FB_REPORT_WM] Fallback error:", e.message));
           }
